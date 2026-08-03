@@ -96,7 +96,10 @@ def compilar_se_necessario() -> str:
             os.path.join(base_dir, sub, "build", "bin", "RCKangaroo.exe"),
             os.path.join(base_dir, sub, "build", "RCKangaroo"),
             os.path.join(base_dir, sub, "build", "Release", "RCKangaroo.exe"),
+            os.path.join(base_dir, sub, "x64", "Release", "RCKangaroo.exe"),  # Visual Studio
+            os.path.join(base_dir, sub, "x64", "Release", "rckangaroo.exe"),
             os.path.join(base_dir, sub, "RCKangaroo.exe"),
+            os.path.join(base_dir, sub, "RCKangaroo"),
         ]
         for c in cands:
             if os.path.exists(c):
