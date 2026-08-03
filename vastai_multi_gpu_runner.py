@@ -138,7 +138,8 @@ def rodar_multi_gpu_vastai(puzzle_num: int, gpus: str):
     step = total_range // num_gpus
 
     processes = []
-    worker_script = os.path.join(os.path.dirname(__file__), "rckangaroo", "pool", "worker", "worker.py")
+    rck_subfolder = "rckangaroo" if os.path.exists(os.path.join(os.path.dirname(__file__), "rckangaroo")) else "RCkangaroo"
+    worker_script = os.path.join(os.path.dirname(__file__), rck_subfolder, "pool", "worker", "worker.py")
 
     for idx, gpu_id in enumerate(gpu_list):
         start_pct = (idx / num_gpus) * 100.0

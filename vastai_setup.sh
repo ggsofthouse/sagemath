@@ -31,19 +31,29 @@ pip3 install sympy ecdsa requests
 echo "[+] Verificando GPUs NVIDIA disponíveis na instância Vast.ai:"
 nvidia-smi --query-gpu=index,name,memory.total --format=csv
 
-# 4. Compilar RCKangaroo para Multi-GPU C++
-echo "[+] Compilando RCKangaroo C++ CUDA Kernel para Linux..."
-cd rckangaroo || exit 1
-if [ -f "CMakeLists.txt" ]; then
-    mkdir -p build && cd build
-    cmake ..
-    make -j$(nproc)
-    echo "[OK] Compilação do RCKangaroo C++ finalizada!"
-else
-    echo "[!] CMakeLists.txt não encontrado em rckangaroo."
+# 4. Localizar pasta do RCKangaroo
+RCK_DIR=""
+if [ -d "rckangaroo" ]; then
+    RCK_DIR="rckangaroo"
+elif [ -d "RCkangaroo" ]; then
+    RCK_DIR="RCkangaroo"
 fi
 
-cd ../..
+if [ -n "$RCK_DIR" ]; then
+    echo "[+] Compilando RCKangaroo C++ CUDA Kernel em $RCK_DIR..."
+    cd "$RCK_DIR"
+    if [ -f "CMakeLists.txt" ]; then
+        mkdir -p build && cd build
+        cmake ..
+        make -j$(nproc) || echo "[!] Compilação C++ falhou, os scripts python continuarão a rodar."
+        cd ../..
+        echo "[OK] Compilação finalizada!"
+    else
+        cd ..
+    fi
+else
+    echo "[!] Pasta rckangaroo não encontrada."
+fi
 
 echo "========================================================================="
 echo "   [SUCESSO] AMBIENTE VAST.AI CONFIGURADO E PRONTO PARA USO!"
