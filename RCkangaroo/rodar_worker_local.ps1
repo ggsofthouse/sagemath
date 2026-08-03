@@ -1,26 +1,29 @@
-# Script PowerShell para rodar Worker Local na RTX 2060 SUPER
+# RCKangaroo Standalone Local Worker Script (PowerShell)
+$Host.UI.RawUI.WindowTitle = "RCKangaroo Standalone Runner - Local"
+Clear-Host
+
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "🦘 RCKangaroo Worker Local - Conexao Pool" -ForegroundColor Yellow
-Write-Host "Servidor: https://valyrafi.com.br" -ForegroundColor Green
+Write-Host "🦘 RCKangaroo Worker Local (100% Standalone - Sem Pool External)" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$PuzzleNum = Read-Host "👉 Digite o numero do Puzzle (ex: 140) [padrao: 140]"
-if ([string]::IsNullOrWhiteSpace($PuzzleNum)) { $PuzzleNum = "140" }
+$PuzzleNum = Read-Host "👉 Digite o numero do Puzzle (ex: 71, 72, 140) [71]"
+if ([string]::IsNullOrWhiteSpace($PuzzleNum)) { $PuzzleNum = "71" }
 
-$StartPct = Read-Host "👉 Porcentagem INICIAL do range (0 a 100) [padrao: 85.0]"
-if ([string]::IsNullOrWhiteSpace($StartPct)) { $StartPct = "85.0" }
-
-$EndPct = Read-Host "👉 Porcentagem FINAL do range (0 a 100) [padrao: 100.0]"
-if ([string]::IsNullOrWhiteSpace($EndPct)) { $EndPct = "100.0" }
+$DPBits = Read-Host "👉 Valor de DP Bits (padrao 14) [14]"
+if ([string]::IsNullOrWhiteSpace($DPBits)) { $DPBits = "14" }
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "🚀 Iniciando Worker Local..." -ForegroundColor Green
+Write-Host "🚀 Iniciando Runner GPU Local..." -ForegroundColor Yellow
 Write-Host "Puzzle:  #$PuzzleNum" -ForegroundColor White
-Write-Host "Range:   $StartPct% ate $EndPct%" -ForegroundColor White
+Write-Host "DP Bits: $DPBits" -ForegroundColor White
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 
-Set-Location $PSScriptRoot
-python pool/worker/worker.py --server https://valyrafi.com.br --name "Local-RTX2060" --puzzle $PuzzleNum --start-pct $StartPct --end-pct $EndPct --non-interactive
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location "$ScriptDir\.."
+
+python vastai_multi_gpu_runner.py --puzzle $PuzzleNum --gpus 0 --dp $DPBits
+
+Read-Host "Pressione ENTER para sair..."

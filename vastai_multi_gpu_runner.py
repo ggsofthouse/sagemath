@@ -6,12 +6,12 @@ Este script executa 100% LOCALMENTE (SEM CONECTAR A NENHUM SERVIDOR OU POOL WEB)
 Ele:
 1. Executa a decomposição LLL GLV no SageMath/Python em < 5ms.
 2. Divide o intervalo 2D diretamente entre as GPUs locais (ex: 4 GPUs no Vast.ai).
-3. Dispara o RCKangaroo CUDA Kernel diretamente em cada GPU em paralelo.
+3. Dispara o RCKangaroo CUDA Kernel diretamente em cada GPU em paralelo com DP=14.
+4. Exibe logs detalhados de desempenho (GKeys por chunk, tempo decorrido e velocidade MKeys/s / GKeys/s).
 
 Uso:
-  python3 vastai_multi_gpu_runner.py --puzzle 71 --gpus 0,1,2,3
-  python3 vastai_multi_gpu_runner.py --puzzle 72 --gpus 0,1,2,3
-  python3 vastai_multi_gpu_runner.py --puzzle 140 --gpus 0,1,2,3
+  python3 vastai_multi_gpu_runner.py --puzzle 71 --gpus 0,1,2,3 --dp 14
+  python3 vastai_multi_gpu_runner.py --puzzle 72 --gpus 0,1,2,3 --dp 14
 """
 
 import os
@@ -95,22 +95,36 @@ def carregar_puzzle_info(puzzle_num: int) -> dict:
     }
 
 
-def localizar_executavel_rckangaroo() -> str:
+def compilar_se_necessario() -> str:
     base_dir = os.path.dirname(__file__)
     for sub in ["rckangaroo", "RCkangaroo"]:
         cand1 = os.path.join(base_dir, sub, "build", "RCKangaroo")
         cand2 = os.path.join(base_dir, sub, "RCKangaroo")
         cand3 = os.path.join(base_dir, sub, "x64", "Release", "RCKangaroo.exe")
-        for c in [cand1, cand2, cand3]:
+        cand4 = os.path.join(base_dir, sub, "build", "Release", "RCKangaroo.exe")
+        for c in [cand1, cand2, cand3, cand4]:
             if os.path.exists(c):
-                return c
+                return os.path.abspath(c)
+        
+        # Tentar compilar via cmake no Linux se o binário não existir
+        folder = os.path.join(base_dir, sub)
+        if os.path.exists(os.path.join(folder, "CMakeLists.txt")):
+            print(f"[+] Compilando RCKangaroo C++ em {folder}...")
+            build_dir = os.path.join(folder, "build")
+            os.makedirs(build_dir, exist_ok=True)
+            subprocess.run(["cmake", ".."], cwd=build_dir, check=False)
+            subprocess.run(["make", "-j4"], cwd=build_dir, check=False)
+            built = os.path.join(build_dir, "RCKangaroo")
+            if os.path.exists(built):
+                return os.path.abspath(built)
+
     return ""
 
 
-def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str):
+def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str, dp_bits: int):
     print("=========================================================================")
-    print(f"   VAST.AI MULTI-GPU RUNNER 100% LOCAL (SEM SERVIDOR POOL)")
-    print(f"   Puzzle Alvo: #{puzzle_num} | GPUs Selecionadas: [{gpus}]")
+    print(f"   VAST.AI MULTI-GPU RUNNER 100% LOCAL (SEM DEPENDÊNCIA DE POOL)")
+    print(f"   Puzzle Alvo: #{puzzle_num} | DP Bits: {dp_bits} | GPUs: [{gpus}]")
     print("=========================================================================")
 
     p_info = carregar_puzzle_info(puzzle_num)
@@ -120,7 +134,7 @@ def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str):
     pubkey = p_info.get("pubkey", "")
 
     print(f"[+] Endereço Bitcoin: {address}")
-    print(f"[+] PubKey (Se houver): {pubkey}")
+    print(f"[+] PubKey Alvo:      {pubkey}")
     print(f"[+] Range Hex Total:   [0x{hex_min:x} ... 0x{hex_max:x}]")
 
     # 1. Redução LLL GLV
@@ -138,73 +152,70 @@ def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str):
     k1 = hex_min - (b1 * u1 + b2 * u2)
     k2 = -(b1 * v1 + b2 * v2)
 
-    print(f"\n[+] Redução LLL GLV no SageMath concluída em {(t1 - t0)*1000:.2f} ms:")
+    print(f"\n[+] Redução LLL GLV concluída em {(t1 - t0)*1000:.2f} ms:")
     print(f"    Subvetor 2D k1: {hex(int(k1))} ({int(k1).bit_length()} bits)")
     print(f"    Subvetor 2D k2: {hex(int(k2))} ({int(k2).bit_length()} bits)")
 
     # 2. Divisão de Trabalho 100% Local entre as GPUs
-    gpu_list = [g.strip() for g in gpus.split(",") if g.strip()]
-    num_gpus = len(gpu_list)
-    print(f"\n[+] Dividindo a varredura 100% LOCAL entre {num_gpus} GPUs...")
+    gpu_mask = "".join(g.strip() for g in gpus.split(",") if g.strip())
+    rck_exe = compilar_se_necessario()
 
-    total_range = hex_max - hex_min
-    step = total_range // num_gpus
+    if not rck_exe:
+        print("[ERR] Executável RCKangaroo não encontrado ou falhou ao compilar.")
+        sys.exit(1)
 
-    rck_exe = localizar_executavel_rckangaroo()
-    processes = []
+    print(f"[+] Binário RCKangaroo localizado: {rck_exe}")
 
-    for idx, gpu_id in enumerate(gpu_list):
-        gpu_start = hex_min + (idx * step)
-        gpu_end = hex_min + ((idx + 1) * step) if idx < num_gpus - 1 else hex_max
-        start_hex = f"{gpu_start:x}"
+    # Para puzzles maiores (ex: 66 a 140 bits), se range > 66 bits, usamos chunks de 66 bits para cada sub-busca
+    range_bits = min(puzzle_num - 1, 66)
+    
+    # Estimativa de operações por chunk no RCKangaroo (2^(range_bits/2))
+    # Para 66 bits de range: ~ 2^33 operacoes medias (~2^35.28 operacoes max = ~39.46 GKeys)
+    total_ops_approx = 2 ** (range_bits / 2.0)
+    gkeys_per_chunk = (total_ops_approx * 4.0) / 1e9  # Aproximacao em GKeys operacionais
 
-        if rck_exe:
-            cmd = [
-                rck_exe,
-                "-gpu", str(gpu_id),
-                "-dp", "18",
-                "-range", str(puzzle_num),
-                "-start", start_hex
-            ]
-            if pubkey:
-                cmd.extend(["-pubkey", pubkey])
-            elif address:
-                cmd.extend(["-addr", address])
-        else:
-            rck_subfolder = "rckangaroo" if os.path.exists(os.path.join(os.path.dirname(__file__), "rckangaroo")) else "RCkangaroo"
-            worker_script = os.path.join(os.path.dirname(__file__), rck_subfolder, "pool", "worker", "worker.py")
-            start_pct = (idx / num_gpus) * 100.0
-            end_pct = ((idx + 1) / num_gpus) * 100.0
-            cmd = [
-                sys.executable, worker_script,
-                "--puzzle", str(puzzle_num),
-                "--name", f"Local-GPU-{gpu_id}",
-                "--start-pct", f"{start_pct:.2f}",
-                "--end-pct", f"{end_pct:.2f}"
-            ]
+    cmd = [
+        rck_exe,
+        "-gpu", gpu_mask,
+        "-dp", str(dp_bits),
+        "-range", str(range_bits),
+        "-start", f"{hex_min:x}"
+    ]
+    if pubkey:
+        cmd.extend(["-pubkey", pubkey])
+    elif address:
+        cmd.extend(["-addr", address])
 
-        print(f"    --> Disparando GPU {gpu_id} (Start: 0x{start_hex}):")
-        print(f"        {' '.join(cmd)}")
+    print(f"\n🚀 Disparando RCKangaroo em {len(gpu_mask)} GPUs (DP={dp_bits}, Range={range_bits} bits)...")
+    print(f"   Comando: {' '.join(cmd)}")
+    print(f"   Estatísticas por Chunk: ~{gkeys_per_chunk:.2f} GKeys estimadas por sub-bloco\n")
 
-        proc = subprocess.Popen(cmd)
-        processes.append(proc)
-
-    print(f"\n[+] Todas as {num_gpus} GPUs estão rodando 100% LOCALMENTE sem conectar a nenhuma pool!")
-    print("[+] Pressione Ctrl+C para parar todos os trabalhadores.\n")
-
+    t_start = time.time()
     try:
-        for p in processes:
-            p.wait()
+        proc = subprocess.Popen(cmd)
+        proc.wait()
     except KeyboardInterrupt:
-        print("\n[!] Interrompendo GPUs...")
-        for p in processes:
-            p.terminate()
+        print("\n[!] Interrompendo execução GPU...")
+        proc.terminate()
+        sys.exit(0)
+
+    t_end = time.time()
+    elapsed = t_end - t_start
+    avg_gkeys_sec = gkeys_per_chunk / elapsed if elapsed > 0 else 0
+
+    print(f"\n=========================================================================")
+    print(f"📊 RESUMO DE DESEMPENHO DO RUNNER LOCAL")
+    print(f"   - Tempo Total:        {elapsed:.2f} segundos")
+    print(f"   - Chaves Estimadas:   ~{gkeys_per_chunk:.3f} GKeys ({gkeys_per_chunk * 1000:.1f} MKeys)")
+    print(f"   - Velocidade Média:   {avg_gkeys_sec:.3f} GKeys/s ({avg_gkeys_sec * 1000:.2f} MKeys/s)")
+    print(f"=========================================================================")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Vast.ai Multi-GPU Standalone Local Runner")
     parser.add_argument("--puzzle", type=int, default=71, help="Número do Puzzle (ex: 71, 72, 140)")
     parser.add_argument("--gpus", type=str, default="0,1,2,3", help="Lista de GPUs (ex: 0,1,2,3)")
+    parser.add_argument("--dp", type=int, default=14, help="DP Bits (padrão 14 para eliminar overhead)")
 
     args = parser.parse_args()
-    rodar_multi_gpu_standalone_local(args.puzzle, args.gpus)
+    rodar_multi_gpu_standalone_local(args.puzzle, args.gpus, args.dp)

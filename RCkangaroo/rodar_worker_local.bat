@@ -1,30 +1,26 @@
 @echo off
-title RCKangaroo Pool Worker - Maquina Local (RTX 2060 SUPER)
+title RCKangaroo Standalone Runner - Maquina Local
 cls
 echo ==================================================
-echo 🦘 RCKangaroo Worker Local - Conexao Pool
-echo Servidor: https://valyrafi.com.br
+echo 🦘 RCKangaroo Worker Local (100%% Standalone - Sem Pool External)
 echo ==================================================
 echo.
 
-set /p PUZZLE_NUM="👉 Digite o numero do Puzzle (ex: 140) [140]: "
-if "%PUZZLE_NUM%"=="" set PUZZLE_NUM=140
+set /p PUZZLE_NUM="👉 Digite o numero do Puzzle (ex: 71, 72, 140) [71]: "
+if "%PUZZLE_NUM%"=="" set PUZZLE_NUM=71
 
-set /p START_PCT="👉 Porcentagem INICIAL do range (0 a 100) [85.0]: "
-if "%START_PCT%"=="" set START_PCT=85.0
-
-set /p END_PCT="👉 Porcentagem FINAL do range (0 a 100) [100.0]: "
-if "%END_PCT%"=="" set END_PCT=100.0
+set /p DP_BITS="👉 Valor de DP Bits (padrao 14) [14]: "
+if "%DP_BITS%"=="" set DP_BITS=14
 
 echo.
 echo ==================================================
-echo 🚀 Iniciando Worker Local...
+echo 🚀 Iniciando Runner GPU Local...
 echo Puzzle:  #%PUZZLE_NUM%
-echo Range:   %START_PCT%%% ate %END_PCT%%%
+echo DP Bits: %DP_BITS%
 echo ==================================================
 echo.
 
-cd /d "%~dp0"
-python pool/worker/worker.py --server https://valyrafi.com.br --name "Local-RTX2060" --puzzle %PUZZLE_NUM% --start-pct %START_PCT% --end-pct %END_PCT% --non-interactive
+cd /d "%~dp0\.."
+python vastai_multi_gpu_runner.py --puzzle %PUZZLE_NUM% --gpus 0 --dp %DP_BITS%
 
 pause

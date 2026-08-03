@@ -101,7 +101,7 @@ PRESETS_DISPLAY = {
 
 # Parse command-line flags or fallback to environment variables
 parser = argparse.ArgumentParser(description="RCKangaroo Mining Pool Worker")
-parser.add_argument("--server", type=str, default=os.environ.get("POOL_SERVER_URL", "https://valyrafi.com.br"), help="Pool Coordinator Server URL")
+parser.add_argument("--server", type=str, default=os.environ.get("POOL_SERVER_URL", "http://localhost:8000"), help="Pool Coordinator Server URL")
 parser.add_argument("--name", type=str, default=os.environ.get("WORKER_NAME", f"Worker-{socket.gethostname()}"), help="Worker Name")
 parser.add_argument("--puzzle", type=int, default=int(os.environ.get("TARGET_PUZZLE", "66")), help="Target Bitcoin Puzzle Number")
 parser.add_argument("--start-pct", type=float, default=float(os.environ.get("START_PCT", "0.0")), help="Start Range Percentage (0.0 to 100.0)")
@@ -287,12 +287,12 @@ def main():
                 pubkey = work["pubkey"]
                 start_hex = work["start_hex"]
                 range_bits = work.get("chunk_bits", work["range_bits"])
-                dp_bits = work.get("dp_bits", 16)
+                dp_bits = work.get("dp_bits", 14)
                 max_ops = work.get("max_ops", "1.0")
 
-                # Optimization for smaller puzzles (under 66 bits)
-                if range_bits < 66:
-                    dp_bits = 16
+                # Optimization for smaller puzzles
+                if range_bits <= 66:
+                    dp_bits = 14
                     max_ops = "1000.0"
 
                 print(f"\n🚀 Recebido Sub-bloco de Trabalho: {chunk_id}")

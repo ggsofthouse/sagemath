@@ -1,16 +1,15 @@
 """
-PIPELINE UNIFICADO: SAGEMATH LLL + RCKANGAROO GPU ENGINE
+PIPELINE UNIFICADO: SAGEMATH LLL + RCKANGAROO GPU ENGINE (100% STANDALONE LOCAL)
 Autor: Antigravity AI Engine
 
 Este script é a interface mestre que:
 1. Executa a Redução de Redes LLL no SageMath para o Puzzle selecionado em milissegundos.
 2. Decompõe o range em 2D GLV para otimização da GPU.
-3. Dispara o Worker do RCKangaroo automaticamente na GPU.
+3. Dispara o RCKangaroo diretamente na GPU local com DP=14 (máxima velocidade, sem overhead).
 
 Uso:
   python pipeline_unificado.py --puzzle 71
-  python pipeline_unificado.py --puzzle 72
-  python pipeline_unificado.py --puzzle 140 --name Local-RTX2060
+  python pipeline_unificado.py --puzzle 72 --gpus 0,1,2,3 --dp 14
 """
 
 import os
@@ -95,10 +94,10 @@ def carregar_puzzle_info(puzzle_num: int) -> dict:
     }
 
 
-def rodar_pipeline(puzzle_num: int, worker_name: str, start_pct: float, end_pct: float):
+def rodar_pipeline(puzzle_num: int, gpus: str, dp_bits: int):
     print("=========================================================================")
     print(f"   PIPELINE UNIFICADO: SAGEMATH LLL GLV + RCKANGAROO GPU ENGINE")
-    print(f"   Executando para o Bitcoin Puzzle #{puzzle_num}")
+    print(f"   Puzzle Alvo: #{puzzle_num} | DP Bits: {dp_bits} | GPUs: [{gpus}]")
     print("=========================================================================")
 
     p_info = carregar_puzzle_info(puzzle_num)
@@ -128,17 +127,16 @@ def rodar_pipeline(puzzle_num: int, worker_name: str, start_pct: float, end_pct:
     print(f"    Subvetor k2: {hex(int(k2))} ({int(k2).bit_length()} bits)")
     print("[OK] Parâmetros 2D otimizados com sucesso.")
 
-    # 2. Disparar Worker RCKangaroo Unificado
-    worker_script = os.path.join(os.path.dirname(__file__), "rckangaroo", "pool", "worker", "worker.py")
+    # 2. Executar via Runner Standalone
+    runner_script = os.path.join(os.path.dirname(__file__), "vastai_multi_gpu_runner.py")
     cmd = [
-        sys.executable, worker_script,
+        sys.executable, runner_script,
         "--puzzle", str(puzzle_num),
-        "--name", worker_name,
-        "--start-pct", str(start_pct),
-        "--end-pct", str(end_pct)
+        "--gpus", gpus,
+        "--dp", str(dp_bits)
     ]
 
-    print(f"\n[+] Disparando RCKangaroo GPU Worker Unificado:")
+    print(f"\n[+] Disparando RCKangaroo GPU Runner Standalone (100% Local):")
     print(f"    Comando: {' '.join(cmd)}")
     print("=========================================================================\n")
 
@@ -148,9 +146,8 @@ def rodar_pipeline(puzzle_num: int, worker_name: str, start_pct: float, end_pct:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pipeline Unificado SageMath LLL + RCKangaroo GPU")
     parser.add_argument("--puzzle", type=int, default=71, help="Número do Puzzle (ex: 71, 72, 140)")
-    parser.add_argument("--name", type=str, default="Local-RTX2060", help="Nome do Worker GPU")
-    parser.add_argument("--start-pct", type=float, default=0.0, help="Percentual Inicial (0.0 a 100.0)")
-    parser.add_argument("--end-pct", type=float, default=100.0, help="Percentual Final (0.0 a 100.0)")
+    parser.add_argument("--gpus", type=str, default="0,1,2,3", help="Lista de GPUs (ex: 0,1,2,3)")
+    parser.add_argument("--dp", type=int, default=14, help="Valor do DP Bits (padrão 14)")
 
     args = parser.parse_args()
-    rodar_pipeline(args.puzzle, args.name, args.start_pct, args.end_pct)
+    rodar_pipeline(args.puzzle, args.gpus, args.dp)
