@@ -1,16 +1,16 @@
 """
-VAST.AI MULTI-GPU RUNNER (SAGEMATH LLL GLV 2D + 4X GPU RCKANGAROO)
+VAST.AI MULTI-GPU STANDALONE LOCAL RUNNER (SAGEMATH LLL GLV 2D + MULTI-GPU RCKANGAROO)
 Autor: Antigravity AI Engine
 
-Este script é otimizado para rodar em instâncias Vast.ai com múltiplas GPUs (ex: 4x RTX 5060 Ti / 4x RTX 4090).
+Este script executa 100% LOCALMENTE (SEM CONECTAR A NENHUM SERVIDOR OU POOL WEB).
 Ele:
 1. Executa a decomposição LLL GLV no SageMath/Python em < 5ms.
-2. Divide a faixa de busca 2D proporcionalmente entre as 4 GPUs.
-3. Dispara os processos do RCKangaroo em paralelo em todas as GPUs.
+2. Divide o intervalo 2D diretamente entre as GPUs locais (ex: 4 GPUs no Vast.ai).
+3. Dispara o RCKangaroo CUDA Kernel diretamente em cada GPU em paralelo.
 
-Uso no Vast.ai:
-  python3 vastai_multi_gpu_runner.py --puzzle 71
-  python3 vastai_multi_gpu_runner.py --puzzle 72
+Uso:
+  python3 vastai_multi_gpu_runner.py --puzzle 71 --gpus 0,1,2,3
+  python3 vastai_multi_gpu_runner.py --puzzle 72 --gpus 0,1,2,3
   python3 vastai_multi_gpu_runner.py --puzzle 140 --gpus 0,1,2,3
 """
 
@@ -91,23 +91,36 @@ def carregar_puzzle_info(puzzle_num: int) -> dict:
         "bits": puzzle_num,
         "hex_min": f"{min_val:x}",
         "hex_max": f"{max_val:x}",
-        "address": "Desconhecido"
+        "address": ""
     }
 
 
-def rodar_multi_gpu_vastai(puzzle_num: int, gpus: str):
+def localizar_executavel_rckangaroo() -> str:
+    base_dir = os.path.dirname(__file__)
+    for sub in ["rckangaroo", "RCkangaroo"]:
+        cand1 = os.path.join(base_dir, sub, "build", "RCKangaroo")
+        cand2 = os.path.join(base_dir, sub, "RCKangaroo")
+        cand3 = os.path.join(base_dir, sub, "x64", "Release", "RCKangaroo.exe")
+        for c in [cand1, cand2, cand3]:
+            if os.path.exists(c):
+                return c
+    return ""
+
+
+def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str):
     print("=========================================================================")
-    print(f"   VAST.AI MULTI-GPU RUNNER: SAGEMATH LLL GLV + RCKANGAROO")
+    print(f"   VAST.AI MULTI-GPU RUNNER 100% LOCAL (SEM SERVIDOR POOL)")
     print(f"   Puzzle Alvo: #{puzzle_num} | GPUs Selecionadas: [{gpus}]")
     print("=========================================================================")
 
     p_info = carregar_puzzle_info(puzzle_num)
     hex_min = int(p_info["hex_min"], 16)
     hex_max = int(p_info["hex_max"], 16)
-    bits = p_info.get("bits", puzzle_num)
     address = p_info.get("address", "")
+    pubkey = p_info.get("pubkey", "")
 
     print(f"[+] Endereço Bitcoin: {address}")
+    print(f"[+] PubKey (Se houver): {pubkey}")
     print(f"[+] Range Hex Total:   [0x{hex_min:x} ... 0x{hex_max:x}]")
 
     # 1. Redução LLL GLV
@@ -129,52 +142,69 @@ def rodar_multi_gpu_vastai(puzzle_num: int, gpus: str):
     print(f"    Subvetor 2D k1: {hex(int(k1))} ({int(k1).bit_length()} bits)")
     print(f"    Subvetor 2D k2: {hex(int(k2))} ({int(k2).bit_length()} bits)")
 
-    # 2. Divisão de Trabalho entre as GPUs (ex: 4 GPUs)
+    # 2. Divisão de Trabalho 100% Local entre as GPUs
     gpu_list = [g.strip() for g in gpus.split(",") if g.strip()]
     num_gpus = len(gpu_list)
-    print(f"\n[+] Dividindo o espaço de busca 2D entre {num_gpus} GPUs no Vast.ai...")
+    print(f"\n[+] Dividindo a varredura 100% LOCAL entre {num_gpus} GPUs...")
 
     total_range = hex_max - hex_min
     step = total_range // num_gpus
 
+    rck_exe = localizar_executavel_rckangaroo()
     processes = []
-    rck_subfolder = "rckangaroo" if os.path.exists(os.path.join(os.path.dirname(__file__), "rckangaroo")) else "RCkangaroo"
-    worker_script = os.path.join(os.path.dirname(__file__), rck_subfolder, "pool", "worker", "worker.py")
 
     for idx, gpu_id in enumerate(gpu_list):
-        start_pct = (idx / num_gpus) * 100.0
-        end_pct = ((idx + 1) / num_gpus) * 100.0
+        gpu_start = hex_min + (idx * step)
+        gpu_end = hex_min + ((idx + 1) * step) if idx < num_gpus - 1 else hex_max
+        start_hex = f"{gpu_start:x}"
 
-        cmd = [
-            sys.executable, worker_script,
-            "--puzzle", str(puzzle_num),
-            "--name", f"VastAI-GPU-{gpu_id}",
-            "--start-pct", f"{start_pct:.2f}",
-            "--end-pct", f"{end_pct:.2f}"
-        ]
+        if rck_exe:
+            cmd = [
+                rck_exe,
+                "-gpu", str(gpu_id),
+                "-dp", "18",
+                "-range", str(puzzle_num),
+                "-start", start_hex
+            ]
+            if pubkey:
+                cmd.extend(["-pubkey", pubkey])
+            elif address:
+                cmd.extend(["-addr", address])
+        else:
+            rck_subfolder = "rckangaroo" if os.path.exists(os.path.join(os.path.dirname(__file__), "rckangaroo")) else "RCkangaroo"
+            worker_script = os.path.join(os.path.dirname(__file__), rck_subfolder, "pool", "worker", "worker.py")
+            start_pct = (idx / num_gpus) * 100.0
+            end_pct = ((idx + 1) / num_gpus) * 100.0
+            cmd = [
+                sys.executable, worker_script,
+                "--puzzle", str(puzzle_num),
+                "--name", f"Local-GPU-{gpu_id}",
+                "--start-pct", f"{start_pct:.2f}",
+                "--end-pct", f"{end_pct:.2f}"
+            ]
 
-        print(f"    --> Disparando GPU {gpu_id} (Faixa {start_pct:.1f}% -> {end_pct:.1f}%):")
+        print(f"    --> Disparando GPU {gpu_id} (Start: 0x{start_hex}):")
         print(f"        {' '.join(cmd)}")
 
         proc = subprocess.Popen(cmd)
         processes.append(proc)
 
-    print(f"\n[+] Todas as {num_gpus} GPUs foram disparadas no Vast.ai!")
-    print("[+] Pressione Ctrl+C para encerrar todos os processos da GPU.\n")
+    print(f"\n[+] Todas as {num_gpus} GPUs estão rodando 100% LOCALMENTE sem conectar a nenhuma pool!")
+    print("[+] Pressione Ctrl+C para parar todos os trabalhadores.\n")
 
     try:
         for p in processes:
             p.wait()
     except KeyboardInterrupt:
-        print("\n[!] Interrompendo todos os workers da GPU...")
+        print("\n[!] Interrompendo GPUs...")
         for p in processes:
             p.terminate()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Vast.ai Multi-GPU Runner SageMath LLL + RCKangaroo")
+    parser = argparse.ArgumentParser(description="Vast.ai Multi-GPU Standalone Local Runner")
     parser.add_argument("--puzzle", type=int, default=71, help="Número do Puzzle (ex: 71, 72, 140)")
     parser.add_argument("--gpus", type=str, default="0,1,2,3", help="Lista de GPUs (ex: 0,1,2,3)")
 
     args = parser.parse_args()
-    rodar_multi_gpu_vastai(args.puzzle, args.gpus)
+    rodar_multi_gpu_standalone_local(args.puzzle, args.gpus)
