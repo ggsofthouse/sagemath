@@ -84,27 +84,57 @@ def carregar_puzzle_info(puzzle_num: int) -> dict:
 
 
 def compilar_se_necessario() -> str:
+    import shutil
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    for sub in ["rckangaroo", "RCkangaroo"]:
+    is_windows = sys.platform == "win32"
+
+    for sub in ["rckangaroo", "RCkangaroo", "RCKangaroo"]:
         cands = [
             os.path.join(base_dir, sub, "build", "bin", "rckangaroo"),
             os.path.join(base_dir, sub, "build", "bin", "RCKangaroo"),
+            os.path.join(base_dir, sub, "build", "bin", "rckangaroo.exe"),
+            os.path.join(base_dir, sub, "build", "bin", "RCKangaroo.exe"),
             os.path.join(base_dir, sub, "build", "RCKangaroo"),
+            os.path.join(base_dir, sub, "build", "Release", "RCKangaroo.exe"),
+            os.path.join(base_dir, sub, "RCKangaroo.exe"),
         ]
         for c in cands:
             if os.path.exists(c):
                 return os.path.abspath(c)
+
+        # Tentar compilar apenas em Linux com cmake disponivel
         folder = os.path.join(base_dir, sub)
-        if os.path.exists(os.path.join(folder, "CMakeLists.txt")):
-            print(f"[+] Compilando RCKangaroo em {folder}...")
-            build_dir = os.path.join(folder, "build")
-            os.makedirs(build_dir, exist_ok=True)
-            subprocess.run(["cmake", ".."], cwd=build_dir, check=False)
-            subprocess.run(["make", "-j4"], cwd=build_dir, check=False)
-            for c in cands:
-                if os.path.exists(c):
-                    return os.path.abspath(c)
+        cmake_file = os.path.join(folder, "CMakeLists.txt")
+        if os.path.exists(cmake_file) and not is_windows:
+            cmake_bin = shutil.which("cmake")
+            make_bin  = shutil.which("make")
+            if cmake_bin and make_bin:
+                print(f"[+] Compilando RCKangaroo em {folder}...")
+                build_dir = os.path.join(folder, "build")
+                os.makedirs(build_dir, exist_ok=True)
+                try:
+                    subprocess.run([cmake_bin, ".."], cwd=build_dir, check=False)
+                    subprocess.run([make_bin, "-j4"],  cwd=build_dir, check=False)
+                    for c in cands:
+                        if os.path.exists(c):
+                            return os.path.abspath(c)
+                except FileNotFoundError as e:
+                    print(f"  [!] Falha na compilacao: {e}")
+            else:
+                print(f"  [!] cmake ou make nao encontrado no PATH (Linux necessario)")
+        elif is_windows and os.path.exists(cmake_file):
+            print(f"  [!] Windows detectado: compilacao automatica nao suportada.")
+            print(f"  [!] Este script foi criado para rodar no servidor Linux (cloud).")
+            print(f"  [!] Execute: git pull && python3 bias_attack_runner.py ... (no servidor)")
+
+    # Procurar rckangaroo diretamente no PATH
+    for name in ["rckangaroo", "RCKangaroo", "rckangaroo.exe", "RCKangaroo.exe"]:
+        found = shutil.which(name)
+        if found:
+            return found
+
     return ""
+
 
 
 def obter_telemetria_gpus() -> list:
