@@ -241,6 +241,13 @@ def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str, dp_bits: int, p
                 break
             print(line, end='', flush=True)
 
+            # Detecção e Destaque da Chave Privada
+            if "PRIVATE KEY:" in line:
+                print("\n" + "🌟"*35)
+                print("🎉🎉 CHAVE PRIVADA ENCONTRADA COM SUCESSO DO PUZZLE! 🎉🎉")
+                print(f"👉 {line.strip()}")
+                print("🌟"*35 + "\n")
+
             # A cada 12 segundos exibe um snapshot da telemetria live de potência e temperatura
             if time.time() - last_telemetry_time >= 12:
                 last_telemetry_time = time.time()
