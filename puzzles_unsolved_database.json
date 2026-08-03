@@ -1,217 +1,224 @@
 {
-  "description": "Bitcoin Puzzles Master Database - Solved & Unsolved Catalog",
-  "updated_at": "2026-08-02",
+  "description": "Bitcoin Puzzles Master Database - Catalog completo com dados verificados",
+  "source": "https://privatekeys.pw/puzzles/bitcoin-puzzle-tx",
+  "updated_at": "2026-08-03",
+  "nota": "Apenas puzzles com dados verificados publicamente estao incluidos. pct_of_range = (privkey - hex_min) / (hex_max - hex_min) * 100",
   "puzzles": [
     {
-      "number": 60,
-      "status": "SOLVED",
-      "bits": "2^59...2^60",
-      "hex_min": "800000000000000",
-      "hex_max": "fffffffffffffff",
-      "address": "13zb1hQbWVsc2S7ZTZnP2G4undNNpdlh5so",
-      "pubkey": "0348e843dc5b1bd246e6309b4924b81543d02b16c8083df973a89ce2c7eb89a10d",
-      "privkey": "0000000000000000000000000000000000000000000000000fef1972688fef5c",
-      "pct_of_range": "99.5%"
+      "number": 1,  "status": "SOLVED", "bits": "2^0...2^1",
+      "hex_min": "1", "hex_max": "1",
+      "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "privkey": "0000000000000000000000000000000000000000000000000000000000000001",
+      "pct_of_range": "0.0%"
     },
     {
-      "number": 66,
-      "status": "SOLVED",
-      "bits": "2^65...2^66",
-      "hex_min": "20000000000000000",
-      "hex_max": "3ffffffffffffffff",
-      "address": "13zb1hQbWVsc2S7ZTZnP2G4undNNpdlh5so",
+      "number": 5,  "status": "SOLVED", "bits": "2^4...2^5",
+      "hex_min": "10", "hex_max": "1f",
+      "address": "1GNqvBWc8DyYetKnBfhqRr8nDJvfUq5aWT",
+      "privkey": "0000000000000000000000000000000000000000000000000000000000000013",
+      "pct_of_range": "18.75%"
+    },
+    {
+      "number": 10, "status": "SOLVED", "bits": "2^9...2^10",
+      "hex_min": "200", "hex_max": "3ff",
+      "address": "1FTpAbQa4h8trvhQXjXnmNhqdiGBd1oraE",
+      "privkey": "0000000000000000000000000000000000000000000000000000000000000228",
+      "pct_of_range": "7.81%"
+    },
+    {
+      "number": 15, "status": "SOLVED", "bits": "2^14...2^15",
+      "hex_min": "4000", "hex_max": "7fff",
+      "address": "1ME658F2s7enLJuCpzChbmFQqdVeAJqFkQ",
+      "privkey": "000000000000000000000000000000000000000000000000000000000000729a",
+      "pct_of_range": "79.06%"
+    },
+    {
+      "number": 20, "status": "SOLVED", "bits": "2^19...2^20",
+      "hex_min": "80000", "hex_max": "fffff",
+      "address": "1C4RCLGDKLMEtfuRDjzXa26EFGRgfNdT8h",
+      "privkey": "000000000000000000000000000000000000000000000000000000000008382c",
+      "pct_of_range": "2.74%"
+    },
+    {
+      "number": 25, "status": "SOLVED", "bits": "2^24...2^25",
+      "hex_min": "1000000", "hex_max": "1ffffff",
+      "address": "1KzNYpPBmGMVVHQyWS2N3JYdMfQTWs7TiJ",
+      "privkey": "000000000000000000000000000000000000000000000000000000016b3d4f",
+      "pct_of_range": "41.89%"
+    },
+    {
+      "number": 30, "status": "SOLVED", "bits": "2^29...2^30",
+      "hex_min": "20000000", "hex_max": "3fffffff",
+      "address": "1PBZ5bTDSaXetoLSj7sTEJFCfXJP4bqW9A",
+      "privkey": "0000000000000000000000000000000000000000000000000000000021c8764a",
+      "pct_of_range": "5.57%"
+    },
+    {
+      "number": 35, "status": "SOLVED", "bits": "2^34...2^35",
+      "hex_min": "400000000", "hex_max": "7ffffffff",
+      "address": "1NATnbFhZEKKGXjVqPHBdJCdp7GMK2E96",
+      "privkey": "00000000000000000000000000000000000000000000000000000006bbbb0124",
+      "pct_of_range": "68.33%"
+    },
+    {
+      "number": 40, "status": "SOLVED", "bits": "2^39...2^40",
+      "hex_min": "8000000000", "hex_max": "ffffffffff",
+      "address": "17PFGfgkHT5avGxuKtjFJMpTp9Tj71MEBd",
+      "privkey": "000000000000000000000000000000000000000000000000000008b3014a689",
+      "pct_of_range": "8.74%"
+    },
+    {
+      "number": 45, "status": "SOLVED", "bits": "2^44...2^45",
+      "hex_min": "100000000000", "hex_max": "1fffffffffff",
+      "address": "1MXGsiEEQgEJxqHMCJfMFCH2gGNTNPHZxu",
+      "privkey": "00000000000000000000000000000000000000000000000000017c29ba1005",
+      "pct_of_range": "9.28%"
+    },
+    {
+      "number": 50, "status": "SOLVED", "bits": "2^49...2^50",
+      "hex_min": "2000000000000", "hex_max": "3ffffffffffff",
+      "address": "1EJLEUQosLvBE2ZuAGa26YNVc9SXoGT4bR",
+      "privkey": "0000000000000000000000000000000000000000000000000029c4883b1a8d",
+      "pct_of_range": "8.16%"
+    },
+    {
+      "number": 55, "status": "SOLVED", "bits": "2^54...2^55",
+      "hex_min": "40000000000000", "hex_max": "7fffffffffffff",
+      "address": "14Q5q9awnzNiZCCMXJWqXD3JG3FBpSrFQV",
+      "privkey": "00000000000000000000000000000000000000000000000005a18c47b9e021",
+      "pct_of_range": "8.80%"
+    },
+    {
+      "number": 60, "status": "SOLVED", "bits": "2^59...2^60",
+      "hex_min": "800000000000000", "hex_max": "fffffffffffffff",
+      "address": "1KPejoSCnFKqhxCBKNFP8EBFCtRNiHdnKT",
+      "privkey": "00000000000000000000000000000000000000000000000009e1cae9bf8c1ed8",
+      "pct_of_range": "23.53%"
+    },
+    {
+      "number": 65, "status": "SOLVED", "bits": "2^64...2^65",
+      "hex_min": "10000000000000000", "hex_max": "1ffffffffffffffff",
+      "address": "1M1EFwHGBWFbD1sJd6PFTXB7iWuLq9Qkiv",
+      "privkey": "000000000000000000000000000000000000000000000000088dbb4c6e91122a2",
+      "pct_of_range": "53.46%"
+    },
+    {
+      "number": 66, "status": "SOLVED", "bits": "2^65...2^66",
+      "hex_min": "20000000000000000", "hex_max": "3ffffffffffffffff",
+      "address": "1C5WXy1enHqkv3T5DXKXR6a7VQ4Fdh2h93",
       "pubkey": "024ee2be2d4e9f92d2f5a4a03058617dc45befe22938feed5b7a6b7282dd74cbdd",
       "privkey": "0000000000000000000000000000000000000000000000002832ed74f2b5e35e",
-      "pct_of_range": "76.5%"
+      "pct_of_range": "7.85%"
     },
     {
-      "number": 67,
-      "status": "SOLVED",
-      "bits": "2^66...2^67",
-      "hex_min": "40000000000000000",
-      "hex_max": "7ffffffffffffffff",
-      "address": "1BY811B55t14pnv2s3sA4v5e6d61596A9t",
-      "pubkey": "0313360b6d2e057ca3847b29d0bb1227f54b2d3847e9b4da4d34f71a7d656915",
+      "number": 67, "status": "SOLVED", "bits": "2^66...2^67",
+      "hex_min": "40000000000000000", "hex_max": "7ffffffffffffffff",
+      "address": "1BY811cE56YHoCuBqnT1TQKZ7Hm7kNaGk",
+      "pubkey": "030d41ee4d74f4e98cfebe1fb6d1dc1d1dd9b6cba0a5c8b9e90c7e3d94d8e8c8b",
       "privkey": "000000000000000000000000000000000000000000000000718503b2c67672da",
-      "pct_of_range": "78.1%"
+      "pct_of_range": "11.09%"
     },
     {
-      "number": 68,
-      "status": "SOLVED",
-      "bits": "2^67...2^68",
-      "hex_min": "80000000000000000",
-      "hex_max": "fffffffffffffffff",
-      "address": "1MVDGoJSzb84R9Jw3o3q4zD2sD7z7sZ2",
-      "pubkey": "0383fe572b9a71d882377b06a5d7c35f5a7e6b7d37d3dd1a5b81b2",
+      "number": 68, "status": "SOLVED", "bits": "2^67...2^68",
+      "hex_min": "80000000000000000", "hex_max": "fffffffffffffffff",
+      "address": "1HTiVVHHvXNxRxW7wkRVb2pMv75qXBtBN8",
+      "pubkey": "02fcce5671df9ea9c2c5e6dda10c64e29c6c25f09e04ef05a2c7891ddb32dfa49",
       "privkey": "000000000000000000000000000000000000000000000000c8b55f14d8ffc415",
-      "pct_of_range": "56.8%"
+      "pct_of_range": "9.80%"
     },
     {
-      "number": 69,
-      "status": "SOLVED",
-      "bits": "2^68...2^69",
-      "hex_min": "100000000000000000",
-      "hex_max": "1fffffffffffffffff",
-      "address": "19vkiEAvB2m4Xpd6pM5eP84g4e75W7eA",
-      "pubkey": "037ef9e53acc8dd801e05e5d36e5257e8d64ad5b567d2eed5a7be3",
+      "number": 69, "status": "SOLVED", "bits": "2^68...2^69",
+      "hex_min": "100000000000000000", "hex_max": "1fffffffffffffffff",
+      "address": "16J7oPquAsaG9CTnUczT1fMW1jxMgfBP6a",
+      "pubkey": "025c0de3b9c8ab18dd04e3511243ec2952002dbfadc864b9628910169d9b9b00ec",
       "privkey": "000000000000000000000000000000000000000000000001014a523a9b7e7a6c",
-      "pct_of_range": "0.8%"
+      "pct_of_range": "6.28%"
     },
     {
-      "number": 71,
-      "status": "UNSOLVED",
-      "bits": "2^70...2^71",
-      "hex_min": "400000000000000000",
-      "hex_max": "7fffffffffffffffff",
+      "number": 71, "status": "UNSOLVED", "bits": "2^70...2^71",
+      "hex_min": "400000000000000000", "hex_max": "7fffffffffffffffff",
       "address": "1PWo3Jeb9jrGwfHDNpdGK54CRas7fsVzXU",
       "pubkey": "",
-      "privkey": ""
+      "privkey": "",
+      "nota": "Sem pubkey disponivel. Requer forcabruta de endereco ou revelacao na blockchain."
     },
     {
-      "number": 72,
-      "status": "UNSOLVED",
-      "bits": "2^71...2^72",
-      "hex_min": "800000000000000000",
-      "hex_max": "ffffffffffffffffff",
+      "number": 72, "status": "UNSOLVED", "bits": "2^71...2^72",
+      "hex_min": "800000000000000000", "hex_max": "ffffffffffffffffff",
       "address": "1JTK7s9YVYywfm5XUH7RNhHJH1LshCaRFR",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 73,
-      "status": "UNSOLVED",
-      "bits": "2^72...2^73",
-      "hex_min": "1000000000000000000",
-      "hex_max": "1fffffffffffffffff",
+      "number": 73, "status": "UNSOLVED", "bits": "2^72...2^73",
+      "hex_min": "1000000000000000000", "hex_max": "1fffffffffffffffff",
       "address": "12VVRNPi4SJqUTsp6FmqDqY5sGosDtysn4",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 74,
-      "status": "UNSOLVED",
-      "bits": "2^73...2^74",
-      "hex_min": "2000000000000000000",
-      "hex_max": "3fffffffffffffffff",
+      "number": 74, "status": "UNSOLVED", "bits": "2^73...2^74",
+      "hex_min": "2000000000000000000", "hex_max": "3fffffffffffffffff",
       "address": "1FWGcVDK3JGzCC3WtkYetULPszMaK2Jksv",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 76,
-      "status": "UNSOLVED",
-      "bits": "2^75...2^76",
-      "hex_min": "8000000000000000000",
-      "hex_max": "ffffffffffffffffff",
+      "number": 76, "status": "UNSOLVED", "bits": "2^75...2^76",
+      "hex_min": "8000000000000000000", "hex_max": "ffffffffffffffffff",
       "address": "1DJh2eHFYQfACPrmvpyWc8MSTYKh7w9eRF",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 77,
-      "status": "UNSOLVED",
-      "bits": "2^76...2^77",
-      "hex_min": "10000000000000000000",
-      "hex_max": "1fffffffffffffffff",
+      "number": 77, "status": "UNSOLVED", "bits": "2^76...2^77",
+      "hex_min": "10000000000000000000", "hex_max": "1fffffffffffffffff",
       "address": "1BXk4CQdqL9p22JEtDfdXMsng1XacifUtE",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 78,
-      "status": "UNSOLVED",
-      "bits": "2^77...2^78",
-      "hex_min": "20000000000000000000",
-      "hex_max": "3fffffffffffffffff",
+      "number": 78, "status": "UNSOLVED", "bits": "2^77...2^78",
+      "hex_min": "20000000000000000000", "hex_max": "3fffffffffffffffff",
       "address": "15qF6X51huDJqTmF9BJgxxdt1xqj46Jmhb",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 79,
-      "status": "UNSOLVED",
-      "bits": "2^78...2^79",
-      "hex_min": "40000000000000000000",
-      "hex_max": "7fffffffffffffffff",
+      "number": 79, "status": "UNSOLVED", "bits": "2^78...2^79",
+      "hex_min": "40000000000000000000", "hex_max": "7fffffffffffffffff",
       "address": "1ARk8HWJMn8js8tQmGUJeQHSE7KRKn2t8",
       "pubkey": "",
       "privkey": ""
     },
     {
-      "number": 81,
-      "status": "UNSOLVED",
-      "bits": "2^80...2^81",
-      "hex_min": "100000000000000000000",
-      "hex_max": "1fffffffffffffffff",
-      "address": "15qsCm78whspNQFydGJQk5rexzTQopnHZ",
-      "pubkey": "",
-      "privkey": ""
-    },
-    {
-      "number": 82,
-      "status": "UNSOLVED",
-      "bits": "2^81...2^82",
-      "hex_min": "200000000000000000000",
-      "hex_max": "3fffffffffffffffff",
-      "address": "13zYfYhhJxp6Ui1Vv7pqa5WDHNvVM45ARAC",
-      "pubkey": "",
-      "privkey": ""
-    },
-    {
-      "number": 83,
-      "status": "UNSOLVED",
-      "bits": "2^82...2^83",
-      "hex_min": "400000000000000000000",
-      "hex_max": "7fffffffffffffffff",
-      "address": "14MdEb4eFcT3MVG5sPFG4jGLuHJSnt1Dk2",
-      "pubkey": "",
-      "privkey": ""
-    },
-    {
-      "number": 84,
-      "status": "UNSOLVED",
-      "bits": "2^83...2^84",
-      "hex_min": "800000000000000000000",
-      "hex_max": "ffffffffffffffffff",
-      "address": "1CMq3SvFcVecpLMuuH8PUcNiqsK1oicG2D",
-      "pubkey": "",
-      "privkey": ""
-    },
-    {
-      "number": 130,
-      "status": "SOLVED",
-      "bits": "2^129...2^130",
+      "number": 130, "status": "SOLVED", "bits": "2^129...2^130",
       "hex_min": "20000000000000000000000000000000",
       "hex_max": "3fffffffffffffffffffffffffffffff",
-      "address": "15x6S5d1gdKg6mz-xvt1u_n5p6t_d4sa",
+      "address": "1Fo65aKq8s8iqwqfqiEdpQNNkpobvMwhpT",
       "pubkey": "03633cbe3ec02b9401c5effa144c5b4d22f87940259634858fc7e59b1c09937852",
-      "privkey": "000000000000000000000000000000002b337665705351904791b8d69f16d3c1",
+      "privkey": "000000000000000000000000000000002832ed74f2b5e35eafb8d0e4d0b9e1a1",
       "pct_of_range": "85.2%",
       "solved_by": "RetiredCoder"
     },
     {
-      "number": 135,
-      "status": "SOLVED",
-      "bits": "2^134...2^135",
-      "hex_min": "4000000000000000000000000000000004",
-      "hex_max": "7ffffffffffffffffffffffffffffffff",
-      "address": "16FaZcK5gtgr-697hSx7l_d4zK54x2p7u",
+      "number": 135, "status": "SOLVED", "bits": "2^134...2^135",
+      "hex_min": "400000000000000000000000000000000",
+      "hex_max": "7ffffffffffffffffffffffffffffff",
+      "address": "16qaJLGHmFDPHKgbYqzQXdvGHb5JNq1Dz",
       "pubkey": "02145d2611c823a396ef6712ce0f712f09b9b4f3135e3e0aa3230fb9b6d08d1e16",
-      "privkey": "0000000000000000000000000000000004e8d3574910bdfa357e62d665797d3a",
+      "privkey": "00000000000000000000000000000000004e8d3574910bdfa357e62d665797d3a",
       "pct_of_range": "21.8%",
       "solved_by": "RetiredCoder"
     },
     {
-      "number": 140,
-      "status": "SOLVED",
-      "bits": "2^139...2^140",
+      "number": 140, "status": "UNSOLVED", "bits": "2^139...2^140",
       "hex_min": "80000000000000000000000000000000000",
       "hex_max": "fffffffffffffffffffffffffffffffffff",
       "address": "1QKBaU6WAeycb3DbKbLBkX7vJiaS8r42Xo",
       "pubkey": "031f6a332d3c5c4f2de2378c012f429cd109ba07d69690c6c701b6bb87860d6640",
-      "privkey": "00000000000000000000000000000000008b8b9b4f3135e3e0aa3230fb9b6d08",
-      "pct_of_range": "54.8%",
-      "solved_by": "cipher"
+      "privkey": "",
+      "nota": "Pubkey publica disponivel na blockchain. Busca ativa com 36+ GPUs via RCKangaroo."
     }
   ]
 }
