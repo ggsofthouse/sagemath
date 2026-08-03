@@ -98,11 +98,17 @@ def carregar_puzzle_info(puzzle_num: int) -> dict:
 def compilar_se_necessario() -> str:
     base_dir = os.path.dirname(__file__)
     for sub in ["rckangaroo", "RCkangaroo"]:
-        cand1 = os.path.join(base_dir, sub, "build", "RCKangaroo")
-        cand2 = os.path.join(base_dir, sub, "RCKangaroo")
-        cand3 = os.path.join(base_dir, sub, "x64", "Release", "RCKangaroo.exe")
-        cand4 = os.path.join(base_dir, sub, "build", "Release", "RCKangaroo.exe")
-        for c in [cand1, cand2, cand3, cand4]:
+        cands = [
+            os.path.join(base_dir, sub, "build", "bin", "rckangaroo"),
+            os.path.join(base_dir, sub, "build", "bin", "RCKangaroo"),
+            os.path.join(base_dir, sub, "build", "RCKangaroo"),
+            os.path.join(base_dir, sub, "build", "rckangaroo"),
+            os.path.join(base_dir, sub, "RCKangaroo"),
+            os.path.join(base_dir, sub, "rckangaroo"),
+            os.path.join(base_dir, sub, "x64", "Release", "RCKangaroo.exe"),
+            os.path.join(base_dir, sub, "build", "Release", "RCKangaroo.exe")
+        ]
+        for c in cands:
             if os.path.exists(c):
                 return os.path.abspath(c)
         
@@ -114,9 +120,9 @@ def compilar_se_necessario() -> str:
             os.makedirs(build_dir, exist_ok=True)
             subprocess.run(["cmake", ".."], cwd=build_dir, check=False)
             subprocess.run(["make", "-j4"], cwd=build_dir, check=False)
-            built = os.path.join(build_dir, "RCKangaroo")
-            if os.path.exists(built):
-                return os.path.abspath(built)
+            for c in cands:
+                if os.path.exists(c):
+                    return os.path.abspath(c)
 
     return ""
 
