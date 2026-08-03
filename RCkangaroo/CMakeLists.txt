@@ -57,10 +57,10 @@ target_include_directories(${TARGET_NAME} PRIVATE
 # Preserve the PTX targets from the old Makefile exactly.
 target_compile_options(${TARGET_NAME} PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-O3>
+    $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_90,code=compute_90>
     $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_89,code=compute_89>
     $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_86,code=compute_86>
     $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_75,code=compute_75>
-    $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_61,code=compute_61>
 )
 
 # Match the working project: static CUDA runtime plus NVIDIA driver API.
