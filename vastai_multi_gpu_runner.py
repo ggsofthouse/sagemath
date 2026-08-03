@@ -127,7 +127,7 @@ def compilar_se_necessario() -> str:
     return ""
 
 
-def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str, dp_bits: int):
+def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str, dp_bits: int, pubkey_override: str = ""):
     print("=========================================================================")
     print(f"   VAST.AI MULTI-GPU RUNNER 100% LOCAL (SEM DEPENDÊNCIA DE POOL)")
     print(f"   Puzzle Alvo: #{puzzle_num} | DP Bits: {dp_bits} | GPUs: [{gpus}]")
@@ -137,7 +137,7 @@ def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str, dp_bits: int):
     hex_min = int(p_info["hex_min"], 16)
     hex_max = int(p_info["hex_max"], 16)
     address = p_info.get("address", "")
-    pubkey = p_info.get("pubkey", "")
+    pubkey = pubkey_override.strip() if pubkey_override else p_info.get("pubkey", "")
 
     print(f"[+] Endereço Bitcoin: {address}")
     print(f"[+] PubKey Alvo:      {pubkey}")
@@ -189,8 +189,6 @@ def rodar_multi_gpu_standalone_local(puzzle_num: int, gpus: str, dp_bits: int):
     ]
     if pubkey:
         cmd.extend(["-pubkey", pubkey])
-    elif address:
-        cmd.extend(["-addr", address])
 
     print(f"\n🚀 Disparando RCKangaroo em {len(gpu_mask)} GPUs (DP={dp_bits}, Range={range_bits} bits)...")
     print(f"   Comando: {' '.join(cmd)}")
@@ -222,6 +220,7 @@ if __name__ == "__main__":
     parser.add_argument("--puzzle", type=int, default=71, help="Número do Puzzle (ex: 71, 72, 140)")
     parser.add_argument("--gpus", type=str, default="0,1,2,3", help="Lista de GPUs (ex: 0,1,2,3)")
     parser.add_argument("--dp", type=int, default=14, help="DP Bits (padrão 14 para eliminar overhead)")
+    parser.add_argument("--pubkey", type=str, default="", help="Chave pública alvo em hex (opcional)")
 
     args = parser.parse_args()
-    rodar_multi_gpu_standalone_local(args.puzzle, args.gpus, args.dp)
+    rodar_multi_gpu_standalone_local(args.puzzle, args.gpus, args.dp, args.pubkey)
