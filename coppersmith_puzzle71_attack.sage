@@ -28,34 +28,49 @@ import hashlib
 N_CURVE = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
 # =========================================================================
-# BANCO DE DADOS: CHAVES PRIVADAS JÁ RESOLVIDAS
+# BANCO DE DADOS: CHAVES PRIVADAS VERIFICADAS (fonte: privatekeys.pw)
 # =========================================================================
 SOLVED = {
     1:  0x1,
     2:  0x3,
     3:  0x7,
     4:  0x8,
-    5:  0x13,
-    6:  0x25,
-    7:  0x4a,
-    8:  0xec,
-    9:  0x111,
-    10: 0x228,
-    15: 0x729a,
-    20: 0x8382c,
-    25: 0x16b3d4f,
-    30: 0x21c8764a,
-    35: 0x6bbbb0124,
-    40: 0x8b3014a689,
-    45: 0x17c29ba1005,
-    50: 0x29c4883b1a8d,
-    55: 0x5a18c47b9e021,
-    60: 0x9e1cae9bf8c1ed8,
-    65: 0x88dbb4c6e91122a2,
-    66: 0x2832ed74f2b5e35e,
-    67: 0x718503b2c67672da,
-    68: 0xc8b55f14d8ffc415,
-    69: 0x1014a523a9b7e7a6c,
+    5:  0x15,
+    6:  0x31,
+    7:  0x4c,
+    8:  0xe0,
+    9:  0x1d3,
+    10: 0x202,
+    11: 0x483,
+    12: 0xa7b,
+    13: 0x1460,
+    14: 0x2930,
+    15: 0x68f3,
+    16: 0xc936,
+    17: 0x1764f,
+    18: 0x3080d,
+    19: 0x57a9f,
+    20: 0xd2c55,
+    25: 0x1fa5ee5,
+    30: 0x3d94cd64,
+    35: 0x4aed21170,
+    40: 0xe9ae4933d6,
+    45: 0x122fca143c05,
+    50: 0x22bd43c2e9354,
+    55: 0x6abe1f9b67e114,
+    60: 0xfc07a1825367bbe,
+    61: 0x13c96a3742f64906,
+    62: 0x363d541eb611abee,
+    63: 0x7cce5efdaccf6808,
+    64: 0xf7051f27b09112d4,
+    65: 0x1a838b13505b26867,
+    # ATENCAO: privkeys abaixo corrigidos com dados reais de privatekeys.pw
+    # Os valores anteriores estavam ERRADOS!
+    66: 0x2832ed74f2b5e35ee,   # pct real: 25.62% (antes: 7.85% ERRADO)
+    67: 0x730fc235c1942c1ae,   # pct real: 79.78% (antes: 11.09% ERRADO)
+    68: 0xbebb3940cd0fc1491,   # pct real: 49.01% (antes: 9.80% ERRADO)
+    69: 0x101d83275fb2bc7e0c,  # pct real: 0.72%  (antes: 6.28% ERRADO)
+    70: 0x349b84b6431a6c4ef1,  # pct real: 64.4%
 }
 
 TARGET_ADDR   = "1PWo3Jeb9jrGwfHDNpdGK54CRas7fsVzXU"

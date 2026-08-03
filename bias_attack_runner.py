@@ -1,18 +1,22 @@
 """
-ATAQUE DE BIAS ESTATÍSTICO - PUZZLE #71 (e outros)
+ATAQUE POR VARREDURA ZONEADA - PUZZLE #71 (e outros)
 Autor: Antigravity AI Engine
 
-Estratégia: Com base nos offsets observados em 27+ puzzles resolvidos,
-os puzzles #40-#69 mostraram concentração de 6-15% no range.
-Este script executa o RCKangaroo priorizando as zonas de maior probabilidade
-estatística PRIMEIRO, antes de varrer o resto do range.
+ESTRATÉGIA ATUALIZADA (dados reais verificados em privatekeys.pw):
 
-Zonas de varredura (em ordem de prioridade):
-  Zona 1 [ALTA PROB]:  0% - 15%   (onde #40-#69 foram encontrados)
-  Zona 2 [MÉDIA PROB]: 15% - 30%  
-  Zona 3 [MÉDIA PROB]: 50% - 65%  (onde #60 e #65 foram encontrados)
-  Zona 4 [BAIXA PROB]: 30% - 50%  
-  Zona 5 [BAIXA PROB]: 65% - 100%
+  Distribuição REAL dos puzzles resolvidos (pct do range):
+    #60:96.9%  #61:23.67%  #62:69.5%   #63:95.01%  #64:92.98%
+    #65:65.71% #66:25.62%  #67:79.78%  #68:49.01%  #69:0.72%
+    #70:64.4%  #75:19.32%  #80:82.89%  #85:9.03%   #90:40.23%
+    #95:28.87% #100:36.98% #105:43.39% #110:67.98% #115:51.49%
+    #120:38.33% #125:77.03% #130:62.2% #135:71.21%
+
+  CONCLUSÃO: Distribuição uniforme/aleatória — sem bias mensurável.
+  Média: ~55% | Desvio padrão: ~27% | Min: 0.72% | Max: 96.9%
+  O gerador usa SHA-256 (saída pseudoaleatória uniforme).
+
+  Estratégia: varredura sequencial por zonas de 12.5% cada.
+  Começamos do início mas sem falsa expectativa de bias.
 
 Uso:
   python3 bias_attack_runner.py --puzzle 71 --gpus 0,1,2,3 --dp 14
@@ -36,21 +40,27 @@ if sys.platform == "win32":
         pass
 
 # ============================================================
-# ZONAS DE BIAS DERIVADAS DE ANÁLISE DOS PUZZLES RESOLVIDOS
-# Baseado nos offsets reais dos puzzles #40 ao #69:
-#   #40→8.74%, #45→9.28%, #50→8.16%, #55→8.80%
-#   #60→23.53%, #65→53.46%, #66→7.85%, #67→11.09%, #68→9.80%, #69→6.28%
+# ZONAS DE VARREDURA — dados reais verificados em privatekeys.pw
+#
+# Distribuição REAL (privkeys corretos):
+#   #66:25.62%  #67:79.78%  #68:49.01%  #69:0.72%  #70:64.4%
+#   #85:9.03%   #90:40.23%  #95:28.87%  #100:36.98% #130:62.2%
+#   #135:71.21% #60:96.9%   #63:95.01%  #64:92.98%
+#
+# CONCLUSÃO: SHA-256 puro — distribuição UNIFORME.
+# Varredura em 8 zonas iguais de 12.5% cada, ordem estatistica:
+# Iniciamos pelo meio (onde a maioria concentra densidade de média)
 # ============================================================
 BIAS_ZONES = [
     # (prioridade, nome, inicio%, fim%, razao)
-    (1, "ALTA PROB [0-15%]",   0.00,  0.15,  "Concentracao maxima: #40,#45,#50,#55,#66,#68,#69"),
-    (2, "ALTA PROB [15-25%]",  0.15,  0.25,  "Zona do Puzzle #60 (23.53%)"),
-    (3, "MEDIA PROB [50-60%]", 0.50,  0.60,  "Zona do Puzzle #65 (53.46%)"),
-    (4, "MEDIA PROB [25-40%]", 0.25,  0.40,  "Zona do Puzzle #25 (41.89%) e #130 (85%)"),
-    (5, "MEDIA PROB [60-75%]", 0.60,  0.75,  "Zona do Puzzle #2 (50%), #3 (75%), #67 (11%)"),
-    (6, "BAIXA PROB [40-50%]", 0.40,  0.50,  "Zona intermediaria"),
-    (7, "BAIXA PROB [75-90%]", 0.75,  0.90,  "Zona do Puzzle #8 (84.38%), #15 (79.06%)"),
-    (8, "BAIXA PROB [90-100%]",0.90,  1.00,  "Zona menos provavel estatisticamente"),
+    (1, "ZONA 4 [37.5-50%]",  0.375, 0.500, "Media historica ~55%, zona proxima: #68(49%), #100(37%), #90(40%)"),
+    (2, "ZONA 5 [50-62.5%]",  0.500, 0.625, "#130(62%), #110(68%), #70(64%), #65(66%), #62(69%)"),
+    (3, "ZONA 3 [25-37.5%]",  0.250, 0.375, "#66(25%), #95(29%), #61(24%), #120(38%), #105(43%)"),
+    (4, "ZONA 6 [62.5-75%]",  0.625, 0.750, "#135(71%), #125(77%), #67(80%), #55(67%)"),
+    (5, "ZONA 2 [12.5-25%]",  0.125, 0.250, "#75(19%), #85(9%) zona proxima, #15(64%)"),
+    (6, "ZONA 7 [75-87.5%]",  0.750, 0.875, "#80(83%), #125(77%), #64(93%) zona proxima"),
+    (7, "ZONA 1 [0-12.5%]",   0.000, 0.125, "#69(0.72%), #85(9%) — baixa freq historica"),
+    (8, "ZONA 8 [87.5-100%]", 0.875, 1.000, "#60(97%), #63(95%), #64(93%) — alta freq historica"),
 ]
 
 PUZZLES_DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "puzzles_unsolved_database.json")
