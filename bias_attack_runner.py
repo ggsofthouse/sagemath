@@ -145,131 +145,97 @@ def imprimir_mapa_bias(range_min: int, range_max: int, zona_ativa: int = None):
 def rodar_zona_bias(rckangaroo_bin: str, gpus_str: str, dp_bits: int,
                     zona_min: int, zona_max: int, zone_name: str,
                     address: str, pubkey: str) -> bool:
-    """Executa RCKangaroo em uma zona específica do range. Retorna True se chave encontrada."""
-
-    gpu_list = [int(g.strip()) for g in gpus_str.split(",")]
-    n_gpus = len(gpu_list)
+    """
+    Executa RCKangaroo em uma zona específica do range.
+    Usa o mesmo padrão do vastai_multi_gpu_runner.py que funciona:
+      -gpu <mask>  -dp <N>  -range <bits>  -start <hex>
+    O RCKangaroo gerencia todas as GPUs internamente em UM processo.
+    Retorna True se chave privada encontrada.
+    """
+    # Máscara de GPUs: "0,1,2,3" -> "0123"
+    gpu_mask = "".join(g.strip() for g in gpus_str.split(",") if g.strip())
     zone_span = zona_max - zona_min
+    range_bits = zone_span.bit_length()
 
     print(f"\n{'='*75}")
     print(f"  DISPARANDO RCKangaroo na Zona: {zone_name}")
-    print(f"  Range: 0x{zona_min:x} -> 0x{zona_max:x}")
-    print(f"  Span:  {zone_span:,} chaves ({zone_span.bit_length()} bits)")
-    print(f"  GPUs:  {gpu_list}")
+    print(f"  Start:      0x{zona_min:x}")
+    print(f"  Range:      {range_bits} bits (~{zone_span:,} chaves)")
+    print(f"  End (calc): 0x{zona_max:x}")
+    print(f"  GPUs mask:  {gpu_mask}")
     print(f"{'='*75}\n")
 
-    # Dividir a zona entre as GPUs
-    chunk_size = zone_span // n_gpus
-    procs = []
+    # Mesmo padrão exato do vastai_multi_gpu_runner.py que funcionava
+    cmd = [
+        rckangaroo_bin,
+        "-gpu", gpu_mask,
+        "-dp", str(dp_bits),
+        "-range", str(range_bits),
+        "-start", f"{zona_min:x}",
+    ]
+    if pubkey:
+        cmd.extend(["-pubkey", pubkey])
 
-    for i, gpu_id in enumerate(gpu_list):
-        sub_min = zona_min + i * chunk_size
-        sub_max = zona_min + (i + 1) * chunk_size - 1 if i < n_gpus - 1 else zona_max
+    print(f"  [CMD] {' '.join(cmd)}\n")
 
-        cmd = [
-            rckangaroo_bin,
-            f"-gpu", f"-gpuId", str(gpu_id),
-            f"-dp", str(dp_bits),
-            f"-range", f"{sub_min:x}:{sub_max:x}",
-        ]
-        if pubkey:
-            cmd += ["-pubkey", pubkey]
-
-        results_file = f"RESULTS_zona_{i}.TXT"
-        print(f"  [GPU {gpu_id}] 0x{sub_min:x} -> 0x{sub_max:x}")
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1
-            )
-            procs.append((gpu_id, proc))
-        except Exception as e:
-            print(f"  [ERRO] Falha ao iniciar GPU {gpu_id}: {e}")
-
-    if not procs:
-        print("[ERRO] Nenhum processo iniciado!")
-        return False
-
-    # Monitorar saída em tempo real
     chave_encontrada = False
     start_time = time.time()
     last_telem_time = start_time
-    linhas_output = []
 
-    print(f"\n  [MONITOR] Aguardando saída das GPUs...\n")
     try:
-        while True:
-            alive = [p for _, p in procs if p.poll() is None]
-            if not alive:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        print(f"  [MONITOR] RCKangaroo PID={proc.pid} rodando...\n")
+
+        for line in iter(proc.stdout.readline, ''):
+            if not line:
                 break
+            line_s = line.rstrip()
+            print(line_s, flush=True)
 
-            # Ler saída de cada processo
-            for gpu_id, proc in procs:
-                try:
-                    line = proc.stdout.readline()
-                    if line:
-                        line = line.rstrip()
-                        linhas_output.append(line)
+            # Detectar vitória
+            if "PRIVATE KEY" in line_s.upper():
+                print(f"\n{'*'*75}")
+                print(f"**** CHAVE PRIVADA ENCONTRADA! PUZZLE RESOLVIDO! ****")
+                print(f"**** {line_s} ****")
+                print(f"{'*'*75}\n")
+                chave_encontrada = True
 
-                        # Detectar vitória
-                        if "PRIVATE KEY" in line.upper() or "Private key" in line:
-                            print(f"\n{'*'*75}")
-                            print(f"*** 🎉🎉🎉 CHAVE PRIVADA ENCONTRADA! PUZZLE RESOLVIDO! 🎉🎉🎉 ***")
-                            print(f"*** {line} ***")
-                            print(f"{'*'*75}\n")
-                            chave_encontrada = True
-                            # Matar todos os outros processos
-                            for _, other_proc in procs:
-                                try:
-                                    other_proc.terminate()
-                                except Exception:
-                                    pass
-
-                        # Mostrar linhas relevantes
-                        if any(kw in line for kw in [
-                            "Points solved", "Speed", "GKey", "MKey",
-                            "Estimated", "GPU", "PRIVATE", "Range", "DP"
-                        ]):
-                            ts = datetime.now().strftime("%H:%M:%S")
-                            print(f"  [{ts}][GPU {gpu_id}] {line}")
-
-                except Exception:
-                    pass
-
-            # Telemetria a cada 30 segundos
+            # Telemetria a cada 30s
             now = time.time()
             if now - last_telem_time >= 30:
                 telem = obter_telemetria_gpus()
                 if telem:
-                    total_w = sum(float(g['power_w']) for g in telem if g['power_w'].replace('.','').isdigit())
-                    telem_str = " | ".join([
-                        f"GPU{g['index']}:{g['temp_c']}C({g['power_w']}W)"
-                        for g in telem
-                    ])
+                    total_w = 0.0
+                    parts = []
+                    for g in telem:
+                        try:
+                            total_w += float(g['power_w'])
+                        except Exception:
+                            pass
+                        parts.append(f"GPU{g['index']}:{g['temp_c']}C({g['power_w']}W)")
                     elapsed = now - start_time
-                    print(f"\n  [TELEM {int(elapsed)}s] Total: {total_w:.0f}W | {telem_str}")
+                    print(f"\n  [TELEM {int(elapsed)}s] Total: {total_w:.0f}W | {' | '.join(parts)}\n")
                 last_telem_time = now
 
-            if chave_encontrada:
-                break
-
-            time.sleep(0.05)
+        proc.wait()
 
     except KeyboardInterrupt:
-        print("\n  [!] Interrompido pelo usuário. Encerrando GPUs...")
-        for _, proc in procs:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
+        print("\n  [!] Interrompido pelo usuário.")
+        try:
+            proc.terminate()
+        except Exception:
+            pass
         raise
 
     elapsed = time.time() - start_time
-    print(f"\n  [ZONA CONCLUÍDA] Tempo: {elapsed:.1f}s | Chave Encontrada: {'SIM' if chave_encontrada else 'NAO'}")
+    print(f"\n  [ZONA CONCLUÍDA] '{zone_name}' | Tempo: {elapsed:.1f}s | Chave: {'ENCONTRADA!' if chave_encontrada else 'nao encontrada'}")
     return chave_encontrada
 
 
