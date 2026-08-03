@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+*.tmp
+.DS_Store
+rckangaroo/build/
+rckangaroo/x64/
+rckangaroo/pool.db
