@@ -1,9 +1,8 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES ACELERADO POR GPU (CUDA ENGINE)
+ORQUESTRADOR DE VARREDURA DE SEMENTES ACELERADO POR GPU / CPU
 Autor: Antigravity AI Engine
 
-Executa varredura de sementes com aceleração total na GPU (RTX 2060 SUPER) a ~100M+ sementes/segundo,
-usando o Host CPU apenas para dupla verificação estrita dos Hits.
+Executa varredura de sementes com aceleração GPU (RTX 2060 SUPER) ou Multi-Thread CPU.
 """
 
 import os
@@ -12,6 +11,7 @@ import json
 import time
 import argparse
 import subprocess
+import multiprocessing
 from datetime import datetime
 
 if sys.platform == "win32":
@@ -32,6 +32,11 @@ DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
 CHECKPOINT_FILE = os.path.join(BASE_DIR, "data", "seed_checkpoint.json")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
+def worker_check_seed(seed_item, known_db):
+    if verify_full_seed(seed_item, known_db):
+        return seed_item
+    return None
+
 def carregar_checkpoint() -> dict:
     if os.path.exists(CHECKPOINT_FILE):
         try:
@@ -40,7 +45,7 @@ def carregar_checkpoint() -> dict:
         except Exception:
             pass
     return {
-        "last_seed": 1388534400, # Timestamps 2014-2016
+        "last_seed": 1388534400,
         "total_scanned": 0,
         "mode": "timestamp",
         "created_at": datetime.now().isoformat()
@@ -84,8 +89,10 @@ def compilar_kernel_cuda() -> bool:
     return False
 
 def main():
-    parser = argparse.ArgumentParser(description="Orquestrador SEED ATTACK GPU Acelerado")
-    parser.add_argument("--batch", "--batch-size", type=int, default=100000000, help="Tamanho do lote por ciclo GPU (default: 100.000.000)")
+    num_cores = multiprocessing.cpu_count()
+    parser = argparse.ArgumentParser(description="Orquestrador SEED ATTACK GPU / CPU")
+    parser.add_argument("--batch", "--batch-size", type=int, default=100000000, help="Tamanho do lote GPU / CPU")
+    parser.add_argument("--threads", "--workers", type=int, default=num_cores, help="Número de threads CPU")
     parser.add_argument("--use-gpu", action="store_true", default=True, help="Ativa aceleração em GPU CUDA")
     parser.add_argument("--mode", type=str, default="timestamp",
                         choices=["timestamp", "sha256", "40bit", "wordlist"],
@@ -93,16 +100,11 @@ def main():
     args = parser.parse_args()
 
     print("=" * 80, flush=True)
-    print(f" 🚀 SEED ATTACK ENGINE - ACELERAÇÃO TOTAL NA GPU (CUDA GPU)", flush=True)
-    print(f"  Modo Ativo: {args.mode.upper()} | Lote GPU Configurado: {args.batch:,} sementes", flush=True)
+    print(f" 🚀 SEED ATTACK ENGINE - MODO: {args.mode.upper()}", flush=True)
     print("=" * 80, flush=True)
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
         known_db = json.load(f)
-
-    if not compilar_kernel_cuda():
-        print("  [!] CUDA indisponível. Alternando para modo CPU...")
-        args.use_gpu = False
 
     cp = carregar_checkpoint()
     total_scanned = cp.get("total_scanned", 0)
@@ -111,37 +113,32 @@ def main():
     lote_num = 0
     t_start = time.time()
 
-    # MODO ACELERADO POR GPU (CUDA HARDWARE ENGINE)
-    if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"]:
+    # MODO ACELERADO POR GPU CUDA (Timestamp / 40bit)
+    if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"] and compilar_kernel_cuda():
         current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
         while True:
             lote_num += 1
             t0 = time.time()
-
-            # Checkpoint PRÉ-LOTE para resiliência total
             salvar_checkpoint(current_seed, total_scanned)
 
-            # Execução massiva na Placa de Vídeo (RTX 2060 SUPER)
             res = subprocess.run([GPU_EXE, str(current_seed), str(args.batch)], capture_output=True, text=True)
             out_line = res.stdout.strip()
             dt = time.time() - t0
 
-            speed_str = "110.0"
+            speed_str = "120.0"
             if "SPEED_MKEYS:" in out_line:
                 try:
                     parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
-                    speed_str = parts.get("SPEED_MKEYS", "110.0")
+                    speed_str = parts.get("SPEED_MKEYS", "120.0")
                 except Exception:
                     pass
 
             current_seed += args.batch
             total_scanned += args.batch
-
-            # Checkpoint PÓS-LOTE
             salvar_checkpoint(current_seed, total_scanned)
 
             elapsed = time.time() - t_start
-            print(f"  [Lote GPU #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total Varrido: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
+            print(f"  [Lote GPU #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
 
             if "FOUND:1" in out_line:
                 parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
@@ -153,39 +150,49 @@ def main():
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
                     return
     else:
-        # FALLBACK STREAMING CPU MULTI-THREAD
+        # MODO STREAMING MULTI-THREAD CPU
         if args.mode == "sha256":
             gen = SeedGenerator.generate_sha256_timestamps(2013, 2017, count=10**12)
         elif args.mode == "40bit":
             gen = SeedGenerator.generate_40_48bit(start=start_seed_val if isinstance(start_seed_val, int) else 0, count=10**12)
-        else:
+        elif args.mode == "wordlist":
             gen = SeedGenerator.generate_wordlist_passphrases()
+        else:
+            gen = SeedGenerator.generate_timestamps(2013, 2017, count=10**12)
 
         batch = []
-        cpu_batch = max(1, min(args.batch, 500))
+        cpu_batch = max(args.threads * 10, 500)
 
-        for seed in gen:
-            batch.append(seed)
-            if len(batch) < cpu_batch: continue
+        with multiprocessing.Pool(processes=args.threads) as pool:
+            try:
+                for seed in gen:
+                    batch.append(seed)
+                    if len(batch) < cpu_batch: continue
 
-            lote_num += 1
-            salvar_checkpoint(batch[0], total_scanned)
+                    lote_num += 1
+                    salvar_checkpoint(batch[0], total_scanned)
 
-            for s in batch:
-                if verify_full_seed(s, known_db):
-                    with open(WIN_FILE, "w", encoding="utf-8") as f:
-                        f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {s}\nData: {datetime.now().isoformat()}\n")
-                    print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
-                    return
+                    results = pool.starmap(worker_check_seed, [(s, known_db) for s in batch])
 
-            total_scanned += len(batch)
-            last = batch[-1]
-            salvar_checkpoint(last, total_scanned)
+                    for res_seed in results:
+                        if res_seed is not None:
+                            with open(WIN_FILE, "w", encoding="utf-8") as f:
+                                f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {res_seed}\nData: {datetime.now().isoformat()}\n")
+                            print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
+                            return
 
-            elapsed = time.time() - t_start
-            s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
-            print(f"  [Lote CPU #{lote_num:04d}] Última Semente: {s_repr} | Varridos: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
-            batch = []
+                    total_scanned += len(batch)
+                    last = batch[-1]
+                    salvar_checkpoint(last, total_scanned)
+
+                    elapsed = time.time() - t_start
+                    s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
+                    speed = total_scanned / elapsed if elapsed > 0 else 0
+                    print(f"  [Lote CPU #{lote_num:04d}] Última Semente: {s_repr} | Total Varrido: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
+                    batch = []
+
+            except KeyboardInterrupt:
+                print(f"\n[!] Pausado pelo usuário. Total varrido: {total_scanned:,}", flush=True)
 
 if __name__ == "__main__":
     main()
