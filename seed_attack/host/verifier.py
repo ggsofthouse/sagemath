@@ -1,5 +1,5 @@
 """
-VERIFICADOR DE HIT & APLICAÇÃO DE MÁSCARA DO PUZZLE (HOST CPU - SUITE MULTI-PATH & BYTES)
+VERIFICADOR DE HIT & APLICAÇÃO DE MÁSCARA DO PUZZLE (HOST CPU - MULTI-PATH BIP32 & INT/BYTES)
 Autor: Antigravity AI Engine
 """
 
@@ -81,64 +81,84 @@ def derive_bip32_child(parent_privkey: int, parent_chain: bytes, index: int, har
     child_chain = I[32:]
     return child_privkey, child_chain
 
-def derive_by_path(master_priv: int, master_chain: bytes, index: int, path_type: str) -> tuple:
-    """Deriva uma chave no caminho especificado (m/0/n, m/n, m/0'/n, m/44'/0'/0'/0/n)."""
+def derive_by_path(m_priv, m_chain, n, path_type="m/n"):
+    """Deriva a chave filha segundo o path escolhido."""
+    if path_type == "m/n":
+        child, _ = derive_bip32_child(m_priv, m_chain, n, hardened=False)
+        return child
+
     if path_type == "m/0/n":
-        p1, c1 = derive_bip32_child(master_priv, master_chain, 0, hardened=False)
-        return derive_bip32_child(p1, c1, index, hardened=False)
-    elif path_type == "m/0'/n":
-        p1, c1 = derive_bip32_child(master_priv, master_chain, 0, hardened=True)
-        return derive_bip32_child(p1, c1, index, hardened=False)
-    elif path_type == "m/44'/0'/0'/0/n":
-        p1, c1 = derive_bip32_child(master_priv, master_chain, 44, hardened=True)
+        p1, c1 = derive_bip32_child(m_priv, m_chain, 0, hardened=False)
+        child, _ = derive_bip32_child(p1, c1, n, hardened=False)
+        return child
+
+    if path_type == "m/0'/n":
+        p1, c1 = derive_bip32_child(m_priv, m_chain, 0, hardened=True)
+        child, _ = derive_bip32_child(p1, c1, n, hardened=False)
+        return child
+
+    if path_type == "m/44'/0'/0'/0/n":
+        p1, c1 = derive_bip32_child(m_priv, m_chain, 44, hardened=True)
         p2, c2 = derive_bip32_child(p1, c1, 0, hardened=True)
         p3, c3 = derive_bip32_child(p2, c2, 0, hardened=True)
         p4, c4 = derive_bip32_child(p3, c3, 0, hardened=False)
-        return derive_bip32_child(p4, c4, index, hardened=False)
-    else: # m/n
-        return derive_bip32_child(master_priv, master_chain, index, hardened=False)
+        child, _ = derive_bip32_child(p4, c4, n, hardened=False)
+        return child
+
+    # fallback
+    child, _ = derive_bip32_child(m_priv, m_chain, n, hardened=False)
+    return child
 
 def apply_puzzle_mask(raw_key: int, n: int) -> int:
     min_n = 1 << (n - 1)
     span  = 1 << (n - 1)
     return min_n + (raw_key % span)
 
-def verify_full_seed_bytes(seed_bytes: bytes, known_keys_db: dict) -> bool:
-    """Validação para sementes brutas (bytes como SHA256) em múltiplos caminhos BIP32."""
-    m_priv, m_chain = derive_bip32_master(seed_bytes)
-    caminhos = ["m/0/n", "m/n", "m/0'/n", "m/44'/0'/0'/0/n"]
+def verify_full_seed(seed_val, known_keys_db: dict) -> bool:
+    """
+    Testa a semente em vários paths BIP32.
+    Aceita seed_val como int ou bytes.
+    """
+    if isinstance(seed_val, int):
+        seed_bytes = seed_val.to_bytes(8, 'big')
+    elif isinstance(seed_val, bytes):
+        seed_bytes = seed_val  # já é bytes (ex: SHA256)
+    elif isinstance(seed_val, str):
+        seed_bytes = seed_val.encode('utf-8')
+    else:
+        return False
 
-    for path_type in caminhos:
-        match_all = True
+    m_priv, m_chain = derive_bip32_master(seed_bytes)
+
+    paths = ["m/n", "m/0/n", "m/0'/n", "m/44'/0'/0'/0/n"]
+
+    for path in paths:
+        ok = True
         for n_str, hex_expected in known_keys_db.get("keys", {}).items():
             n = int(n_str)
             expected = int(hex_expected, 16)
-            child_priv, _ = derive_by_path(m_priv, m_chain, n, path_type)
+            child_priv = derive_by_path(m_priv, m_chain, n, path)
             cand = apply_puzzle_mask(child_priv, n)
             if cand != expected:
-                match_all = False
+                ok = False
                 break
 
-        if match_all:
-            child_71, _ = derive_by_path(m_priv, m_chain, 71, path_type)
-            d71 = apply_puzzle_mask(child_71, 71)
-            addr71 = privkey_to_address(d71)
+        if not ok:
+            continue
 
-            print(f"\n🎉🎉🎉 CONFIRMAÇÃO TOTAL NO HOST CPU! SEMENTE (hex): {seed_bytes.hex()} (Path: {path_type}) 🎉🎉🎉")
-            print(f"🔥 CHAVE PRIVADA PUZZLE #71: {hex(d71)}")
-            print(f"  Endereço Bitcoin Derivado : {addr71}")
-            print(f"  Endereço Alvo Esperado     : {TARGET_ADDRESS}")
+        # Passou em todas as chaves conhecidas neste path → gera #71
+        child_71 = derive_by_path(m_priv, m_chain, 71, path)
+        d71 = apply_puzzle_mask(child_71, 71)
+        addr71 = privkey_to_address(d71)
 
-            if addr71 == TARGET_ADDRESS:
-                print("  🏆 ENDEREÇO BITCOIN CONFIRMADO 100% COM SUCESSO!")
-                return True
-    return False
+        print(f"\n🎉 HIT CONFIRMADO NO PATH: {path}")
+        print(f"  Semente : {seed_val}")
+        print(f"  Privkey #71 : {hex(d71)}")
+        print(f"  Endereço    : {addr71}")
+        print(f"  Alvo        : {TARGET_ADDRESS}")
 
-def verify_full_seed(seed_val, known_keys_db: dict) -> bool:
-    if isinstance(seed_val, bytes):
-        return verify_full_seed_bytes(seed_val, known_keys_db)
-    elif isinstance(seed_val, int):
-        return verify_full_seed_bytes(seed_val.to_bytes(8, 'big'), known_keys_db)
-    elif isinstance(seed_val, str):
-        return verify_full_seed_bytes(seed_val.encode('utf-8'), known_keys_db)
+        if addr71 == TARGET_ADDRESS:
+            print("  🏆 ENDEREÇO CONFIRMADO!")
+            return True
+
     return False
