@@ -1,8 +1,6 @@
 """
 ORQUESTRADOR CONTÍNUO DE VARREDURA DE SEMENTES GPU / CPU - BITCOIN PUZZLE #71
 Autor: Antigravity AI Engine
-
-Integrado 100% com o SeedGenerator para todos os modos (timestamp, sha256, 40bit, wordlist).
 """
 
 import os
@@ -105,26 +103,18 @@ def main():
     total_scanned = cp.get("total_scanned", 0)
     start_seed_val = cp.get("last_seed", 1388534400)
 
-    # Instanciar o SeedGenerator de acordo com o modo selecionado pelo usuário
-    if args.mode == "timestamp":
-        gen = SeedGenerator.generate_timestamps(2014, 2016, count=10**12)
-    elif args.mode == "sha256":
-        gen = SeedGenerator.generate_sha256_timestamps(2014, 2016, count=10**12)
-    elif args.mode == "40bit":
-        gen = SeedGenerator.generate_40_48bit(start=start_seed_val if isinstance(start_seed_val, int) else 0, count=10**12)
-    else:
-        words = ["bitcoin", "satoshi", "puzzle", "nakamoto", "genesis", "secret"]
-        gen = SeedGenerator.generate_wordlist_passphrases(words)
-
     lote_num = 0
     t_start = time.time()
 
-    # MODO 1: Se for timestamp numérico e o executável GPU estiver pronto, roda no Kernel CUDA de ultra-alta velocidade
+    # MODO 1: Se for timestamp numérico e o executável GPU estiver pronto, roda no Kernel CUDA
     if args.mode == "timestamp" and os.path.exists(GPU_EXE):
         current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
         while True:
             lote_num += 1
             t0 = time.time()
+
+            # Salva o checkpoint PRÉ-LOTE para resiliência total contra paradas inesperadas
+            salvar_checkpoint(current_seed, total_scanned)
 
             res = subprocess.run([GPU_EXE, str(current_seed), str(args.batch)], capture_output=True, text=True)
             out_line = res.stdout.strip()
@@ -154,13 +144,22 @@ def main():
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!")
                     return
     else:
-        # MODO 2: Stream via SeedGenerator para SHA256 (bytes), 40-bits e Wordlists
+        # MODO 2: Stream via SeedGenerator para SHA256, 40-bits e Wordlists
+        if args.mode == "sha256":
+            gen = SeedGenerator.generate_sha256_timestamps(2014, 2016, count=10**12)
+        elif args.mode == "40bit":
+            gen = SeedGenerator.generate_40_48bit(start=start_seed_val if isinstance(start_seed_val, int) else 0, count=10**12)
+        else:
+            words = ["bitcoin", "satoshi", "puzzle", "nakamoto", "genesis", "secret"]
+            gen = SeedGenerator.generate_wordlist_passphrases(words)
+
         batch = []
+        cpu_batch = min(args.batch, 10000)
+
         for seed in gen:
             batch.append(seed)
 
-            # Acumular lote configurável (ou até atingir limite razoável para checagem)
-            if len(batch) < args.batch and len(batch) < 50000:
+            if len(batch) < cpu_batch:
                 continue
 
             lote_num += 1
