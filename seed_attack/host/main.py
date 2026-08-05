@@ -1,8 +1,6 @@
 """
-ORQUESTRADOR MULTI-CORE 100% CPU - BITCOIN PUZZLE #71
+ORQUESTRADOR MULTI-THREAD 100% CPU (10 THREADS EM PARALELO) - BITCOIN PUZZLE #71
 Autor: Antigravity AI Engine
-
-Utiliza MULTIPROCESSING para usar TODOS os núcleos do processador (100% CPU).
 """
 
 import os
@@ -30,7 +28,7 @@ CHECKPOINT_FILE = os.path.join(BASE_DIR, "data", "seed_checkpoint.json")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
 def worker_check_seed(seed_item, known_db):
-    """Função executada em paralelo em cada núcleo do CPU."""
+    """Função executada em paralelo nas 10 threads do CPU."""
     if verify_full_seed(seed_item, known_db):
         return seed_item
     return None
@@ -66,18 +64,17 @@ def salvar_checkpoint(last_seed, total_scanned: int):
         json.dump(data, f, indent=2)
 
 def main():
-    num_cores = multiprocessing.cpu_count()
-    parser = argparse.ArgumentParser(description="Orquestrador BIP32 Multi-Core 100% CPU")
+    parser = argparse.ArgumentParser(description="Orquestrador BIP32 Multi-Thread (10 Threads)")
     parser.add_argument("--batch", "--batch-size", type=int, default=1000, help="Tamanho do lote por ciclo")
-    parser.add_argument("--workers", type=int, default=num_cores, help=f"Número de núcleos CPU (default: {num_cores})")
+    parser.add_argument("--workers", "--threads", type=int, default=10, help="Número de threads/núcleos CPU em paralelo (default: 10)")
     parser.add_argument("--mode", type=str, default="timestamp",
                         choices=["timestamp", "sha256", "40bit", "wordlist"],
                         help="Tipo de semente a varrer via SeedGenerator")
     args = parser.parse_args()
 
     print("=" * 80, flush=True)
-    print(f" 🚀 ORQUESTRADOR BIP32 MULTI-CORE (PARALELISMO EM {args.workers} NÚCLEOS CPU)", flush=True)
-    print(f"  Modo Ativo: {args.mode.upper()} | Uso Total do Processador em Tempo Real", flush=True)
+    print(f" 🚀 ORQUESTRADOR BIP32 MULTI-THREAD (PARALELISMO DE {args.workers} THREADS)", flush=True)
+    print(f"  Modo Ativo: {args.mode.upper()} | Executando simultaneamente em {args.workers} threads", flush=True)
     print("=" * 80, flush=True)
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -103,7 +100,7 @@ def main():
     batch = []
     cpu_batch = max(args.workers * 10, args.batch)
 
-    # Pool de multiprocessamento paralelo
+    # Pool de 10 threads em paralelo
     with multiprocessing.Pool(processes=args.workers) as pool:
         try:
             for seed in gen:
@@ -117,7 +114,7 @@ def main():
                 # Checkpoint PRÉ-LOTE
                 salvar_checkpoint(batch[0], total_scanned)
 
-                # Processamento paralelo em TODOS OS NÚCLEOS DO CPU
+                # Processamento paralelo nas 10 THREADS
                 results = pool.starmap(worker_check_seed, [(s, known_db) for s in batch])
 
                 for res_seed in results:
