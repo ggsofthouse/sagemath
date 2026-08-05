@@ -2,6 +2,11 @@ __pycache__/
 *.pyc
 *.log
 *.tmp
+*.exe
+*.obj
+*.exp
+*.lib
+*.pdb
 .DS_Store
 rckangaroo/build/
 rckangaroo/x64/
