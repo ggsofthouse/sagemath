@@ -1,8 +1,8 @@
 """
-EXCUTOR MESTRE DE ATAQUES - BITCOIN PUZZLE #71
+EXECUTOR MESTRE AUTOMATIZADO - BITCOIN PUZZLE #71
 Autor: Antigravity AI Engine
 
-Permite executar qualquer um dos vetores de ataque otimizados com 1 único comando.
+Executa os vetores de ataque em sequência automática ou permite selecionar um modo individual.
 """
 
 import os
@@ -26,12 +26,13 @@ def menu_principal():
     print(f"  Diretório do Projeto: {BASE_DIR}")
     print(f"  Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 80)
-    print("\nEscolha a estratégia de ataque a ser executada:\n")
-    print("  [1] ⚡ SEED ATTACK GPU (CUDA ~1.16 Bilhão sementes/seg - Timestamps 2014-2016)")
-    print("  [2] 🔑 BIP32 HD-WALLET CPU (Unhardened 33-byte PubKey + Validação #65-#70)")
-    print("  [3] 🧠 Z3 SMT SOLVER (Reconstrução Simbólica de PRNG de 64, 128 e 256 bits)")
-    print("  [4] 🎲 ORQUESTRADOR DE ZONAS GPU (Intercalado 70% Z1 / 15% Z2 / 15% Z3 + Auto-Restart)")
-    print("  [5] 🔐 SEED ATTACK SHA256 / 40-48 BITS (Hashes de Timestamps e Sementes Curtas)")
+    print("\nEscolha a forma de execução:\n")
+    print("  [1] ⚡ EXECUTAR TODOS EM SEQUÊNCIA AUTOMÁTICA (Timestamps -> SHA256 -> 40-bits -> Z3 Solver)")
+    print("  [2] 🔑 Modo Timestamps (2014-2016)")
+    print("  [3] 🔐 Modo SHA256 (Hashes de Timestamps)")
+    print("  [4] 🔢 Modo 40-Bits (Sementes Inteiras de 40 a 48 bits)")
+    print("  [5] 🧠 Z3 SMT Solver (Reconstrução Simbólica 64/128/256 bits)")
+    print("  [6] 🎲 Orquestrador de Zonas GPU (Intercalado 70% Z1 / 15% Z2 / 15% Z3)")
     print("  [0] Sair")
     print("\n" + "-" * 80)
 
@@ -39,26 +40,29 @@ def rodar_script(script_path: str, extra_args: list = None):
     cmd = [sys.executable, script_path]
     if extra_args:
         cmd.extend(extra_args)
-    print(f"\n▶ Executando: {' '.join(cmd)}\n")
+    print(f"\n▶ [INICIANDO] {' '.join(cmd)}\n", flush=True)
     try:
         subprocess.run(cmd, check=True)
     except KeyboardInterrupt:
-        print("\n[!] Processo pausado pelo usuário.")
+        print("\n[!] Etapa pausada pelo usuário.", flush=True)
     except Exception as e:
-        print(f"\n[ERRO] Falha na execução: {e}")
+        print(f"\n[ERRO] Falha na execução da etapa: {e}", flush=True)
 
 def main():
-    parser = argparse.ArgumentParser(description="Executor Mestre do Puzzle #71")
-    parser.add_argument("--opcao", type=int, choices=[0, 1, 2, 3, 4, 5], help="Opção direta de ataque (1-5)")
-    parser.add_argument("--batch-size", type=int, default=500000000, help="Tamanho do lote GPU")
+    parser = argparse.ArgumentParser(description="Executor Mestre Automatizado do Puzzle #71")
+    parser.add_argument("--auto", action="store_true", help="Executa a sequência completa de ataques em linha automaticamente")
+    parser.add_argument("--opcao", type=int, choices=[0, 1, 2, 3, 4, 5, 6], help="Opção direta de ataque")
     args = parser.parse_args()
 
-    opcao = args.opcao
+    if args.auto:
+        opcao = 1
+    else:
+        opcao = args.opcao
 
     if opcao is None:
         menu_principal()
         try:
-            opcao_str = input("Digite o número da opção desejada [0-5]: ").strip()
+            opcao_str = input("Digite a opção desejada [0-6]: ").strip()
             if not opcao_str.isdigit():
                 print("Opção inválida.")
                 return
@@ -67,21 +71,30 @@ def main():
             print("\nEncerrando.")
             return
 
+    main_script = os.path.join(BASE_DIR, "seed_attack", "host", "main.py")
+    z3_script = os.path.join(BASE_DIR, "bip32_z3_prng_solver.py")
+    zones_script = os.path.join(BASE_DIR, "puzzle71_randomized_runner.py")
+
     if opcao == 1:
-        # Seed Attack GPU Timestamps
-        rodar_script(os.path.join(BASE_DIR, "seed_attack", "host", "main.py"), ["--mode", "timestamps", "--batch-size", str(args.batch_size)])
+        print("\n🚀 INICIANDO SEQUÊNCIA AUTOMÁTICA EM LINHA DE TODOS OS ATAQUES!\n")
+        # 1. Timestamps
+        rodar_script(main_script, ["--mode", "timestamp"])
+        # 2. Hashes SHA256
+        rodar_script(main_script, ["--mode", "sha256"])
+        # 3. 40-bits
+        rodar_script(main_script, ["--mode", "40bit"])
+        # 4. Z3 SMT Solver
+        rodar_script(z3_script)
     elif opcao == 2:
-        # BIP32 HD-Wallet CPU
-        rodar_script(os.path.join(BASE_DIR, "bip32_hdwallet_seed_search.py"))
+        rodar_script(main_script, ["--mode", "timestamp"])
     elif opcao == 3:
-        # Z3 SMT Solver
-        rodar_script(os.path.join(BASE_DIR, "bip32_z3_prng_solver.py"))
+        rodar_script(main_script, ["--mode", "sha256"])
     elif opcao == 4:
-        # Orquestrador de Zonas
-        rodar_script(os.path.join(BASE_DIR, "puzzle71_randomized_runner.py"), ["--max-chunks", "100"])
+        rodar_script(main_script, ["--mode", "40bit"])
     elif opcao == 5:
-        # SHA256 / 40-bits
-        rodar_script(os.path.join(BASE_DIR, "seed_attack", "host", "main.py"), ["--mode", "sha256"])
+        rodar_script(z3_script)
+    elif opcao == 6:
+        rodar_script(zones_script, ["--max-chunks", "100"])
     elif opcao == 0:
         print("Saindo.")
     else:
