@@ -1,5 +1,5 @@
 /*
- * SEED ATTACK GPU KERNEL - BIP32 & PUZZLE MASKING (CUDA)
+ * SEED ATTACK GPU KERNEL - BIP32 m/0/n UNHARDENED PATH & PUZZLE MASKING
  * Autor: Antigravity AI Engine
  */
 
@@ -7,24 +7,24 @@
 #include <stdint.h>
 #include <cuda_runtime.h>
 
-// Chaves conhecidas dos puzzles #66 a #70 divididas em High/Low 64-bit (max 64-bit / 16 hex por termo)
-__constant__ uint64_t TARGET_HIGH[5] = {
-    0x02ULL,               // #66 (66 bits: 0x2 em High)
-    0x01ULL,               // #67 (67 bits: 0x1 em High)
-    0x0bULL,               // #68 (68 bits: 0x0b em High)
-    0x10ULL,               // #69 (69 bits: 0x10 em High)
-    0x34ULL                // #70 (70 bits: 0x34 em High)
+// Chaves conhecidas dos puzzles #65 a #70 divididas em High/Low 64-bit (max 64-bit por termo)
+__constant__ uint64_t TARGET_HIGH[6] = {
+    0x00ULL,               // #65 (65 bits: 0x1 em High, mas 64 bits de Low cabem a partir de 0xa838b...)
+    0x02ULL,               // #66
+    0x01ULL,               // #67
+    0x0bULL,               // #68
+    0x10ULL,               // #69
+    0x34ULL                // #70
 };
 
-__constant__ uint64_t TARGET_LOW[5] = {
-    0x832ed74f2b5e35eeULL, // #66
-    0x30fc235c1942c1aeULL, // #67
-    0xebb3940cd0fc1491ULL, // #68
-    0x1d83275fb2bc7e0cULL, // #69
-    0x9b84b6431a6c4ef1ULL  // #70
+__constant__ uint64_t TARGET_LOW[6] = {
+    0xa838b13505b26867ULL,  // #65
+    0x832ed74f2b5e35eeULL,  // #66
+    0x30fc235c1942c1aeULL,  // #67
+    0xebb3940cd0fc1491ULL,  // #68
+    0x1d83275fb2bc7e0cULL,  // #69
+    0x9b84b6431a6c4ef1ULL   // #70
 };
-
-__constant__ int PUZZLE_BITS[5] = {66, 67, 68, 69, 70};
 
 __device__ __forceinline__ uint64_t rotr64(uint64_t x, int n) {
     return (x >> n) | (x << (64 - n));
@@ -114,11 +114,10 @@ __global__ void search_bip32_kernel(uint64_t start_seed, uint64_t count, uint64_
 
     sha512_transform(state, block);
 
-    // Testar se d_70 e d_68 batem
     uint64_t cand_high = 0x20ULL | ((state[0] >> 32) & 0x1FULL);
     uint64_t cand_low  = state[1];
 
-    if (cand_high == TARGET_HIGH[4] && cand_low == TARGET_LOW[4]) {
+    if (cand_high == TARGET_HIGH[5] && cand_low == TARGET_LOW[5]) {
         *out_found_flag = 1;
         *out_found_seed = seed_val;
     }
