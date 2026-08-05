@@ -1,5 +1,5 @@
 """
-VERIFICADOR DE HIT & APLICAÇÃO DE MÁSCARA DO PUZZLE (HOST CPU - MULTI-PATH BIP32 & INT/BYTES)
+VERIFICADOR DE HIT & APLICAÇÃO DE MÁSCARA DO PUZZLE (HOST CPU - SHORT-CIRCUIT & FLUSH REAL-TIME)
 Autor: Antigravity AI Engine
 """
 
@@ -38,13 +38,11 @@ def point_mul(k, p=G):
     return r
 
 def privkey_to_pubkey_bytes(privkey_int: int) -> bytes:
-    """Retorna os 33 bytes da Chave Pública Comprimida (0x02/0x03 + X)."""
     pt = point_mul(privkey_int)
     prefix = b'\x02' if pt[1] % 2 == 0 else b'\x03'
     return prefix + pt[0].to_bytes(32, 'big')
 
 def privkey_to_address(privkey_int: int) -> str:
-    """Deriva o Endereço Bitcoin P2PKH da chave privada."""
     pub_bytes = privkey_to_pubkey_bytes(privkey_int)
     sha = hashlib.sha256(pub_bytes).digest()
     rip = hashlib.new('ripemd160', sha).digest()
@@ -72,7 +70,7 @@ def derive_bip32_child(parent_privkey: int, parent_chain: bytes, index: int, har
         index += 0x80000000
         data = b'\x00' + parent_privkey.to_bytes(32, 'big') + index.to_bytes(4, 'big')
     else:
-        parent_pub_bytes = privkey_to_pubkey_bytes(parent_privkey) # 33 bytes!
+        parent_pub_bytes = privkey_to_pubkey_bytes(parent_privkey)
         data = parent_pub_bytes + index.to_bytes(4, 'big')
 
     I = hmac.new(parent_chain, data, hashlib.sha512).digest()
@@ -82,7 +80,6 @@ def derive_bip32_child(parent_privkey: int, parent_chain: bytes, index: int, har
     return child_privkey, child_chain
 
 def derive_by_path(m_priv, m_chain, n, path_type="m/n"):
-    """Deriva a chave filha segundo o path escolhido."""
     if path_type == "m/n":
         child, _ = derive_bip32_child(m_priv, m_chain, n, hardened=False)
         return child
@@ -105,7 +102,6 @@ def derive_by_path(m_priv, m_chain, n, path_type="m/n"):
         child, _ = derive_bip32_child(p4, c4, n, hardened=False)
         return child
 
-    # fallback
     child, _ = derive_bip32_child(m_priv, m_chain, n, hardened=False)
     return child
 
@@ -115,50 +111,51 @@ def apply_puzzle_mask(raw_key: int, n: int) -> int:
     return min_n + (raw_key % span)
 
 def verify_full_seed(seed_val, known_keys_db: dict) -> bool:
-    """
-    Testa a semente em vários paths BIP32.
-    Aceita seed_val como int ou bytes.
-    """
     if isinstance(seed_val, int):
         seed_bytes = seed_val.to_bytes(8, 'big')
     elif isinstance(seed_val, bytes):
-        seed_bytes = seed_val  # já é bytes (ex: SHA256)
+        seed_bytes = seed_val
     elif isinstance(seed_val, str):
         seed_bytes = seed_val.encode('utf-8')
     else:
         return False
 
     m_priv, m_chain = derive_bip32_master(seed_bytes)
-
     paths = ["m/n", "m/0/n", "m/0'/n", "m/44'/0'/0'/0/n"]
 
+    keys_map = known_keys_db.get("keys", {})
+
     for path in paths:
-        ok = True
-        for n_str, hex_expected in known_keys_db.get("keys", {}).items():
+        # ATALHO INTELIGENTE: Testa primeiro o Puzzle #70 para rejeição instantânea (Short-Circuit)
+        if "70" in keys_map:
+            c70 = derive_by_path(m_priv, m_chain, 70, path)
+            if apply_puzzle_mask(c70, 70) != int(keys_map["70"], 16):
+                continue
+
+        # Se passou no #70, verifica os outros puzzles
+        match_all = True
+        for n_str, hex_expected in keys_map.items():
             n = int(n_str)
+            if n == 70: continue
             expected = int(hex_expected, 16)
             child_priv = derive_by_path(m_priv, m_chain, n, path)
-            cand = apply_puzzle_mask(child_priv, n)
-            if cand != expected:
-                ok = False
+            if apply_puzzle_mask(child_priv, n) != expected:
+                match_all = False
                 break
 
-        if not ok:
-            continue
+        if match_all:
+            child_71 = derive_by_path(m_priv, m_chain, 71, path)
+            d71 = apply_puzzle_mask(child_71, 71)
+            addr71 = privkey_to_address(d71)
 
-        # Passou em todas as chaves conhecidas neste path → gera #71
-        child_71 = derive_by_path(m_priv, m_chain, 71, path)
-        d71 = apply_puzzle_mask(child_71, 71)
-        addr71 = privkey_to_address(d71)
+            print(f"\n🎉 HIT CONFIRMADO NO PATH: {path}", flush=True)
+            print(f"  Semente : {seed_val}", flush=True)
+            print(f"  Privkey #71 : {hex(d71)}", flush=True)
+            print(f"  Endereço    : {addr71}", flush=True)
+            print(f"  Alvo        : {TARGET_ADDRESS}", flush=True)
 
-        print(f"\n🎉 HIT CONFIRMADO NO PATH: {path}")
-        print(f"  Semente : {seed_val}")
-        print(f"  Privkey #71 : {hex(d71)}")
-        print(f"  Endereço    : {addr71}")
-        print(f"  Alvo        : {TARGET_ADDRESS}")
-
-        if addr71 == TARGET_ADDRESS:
-            print("  🏆 ENDEREÇO CONFIRMADO!")
-            return True
+            if addr71 == TARGET_ADDRESS:
+                print("  🏆 ENDEREÇO CONFIRMADO!", flush=True)
+                return True
 
     return False
