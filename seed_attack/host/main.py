@@ -1,13 +1,8 @@
 """
-ORQUESTRADOR CONTÍNUO DE VARREDURA DE SEMENTES BIP32 (CPU MULTI-PATH 100% CRIPTOGRÁFICO REAL)
+ORQUESTRADOR MULTI-CORE 100% CPU - BITCOIN PUZZLE #71
 Autor: Antigravity AI Engine
 
-Garantia Criptográfica:
-  - HMAC-SHA512 com "Bitcoin seed"
-  - Derivação Unhardened com Chave Pública Comprimida de 33 bytes (secp256k1)
-  - Validação estrita em 4 caminhos simultâneos (m/0/n, m/n, m/0'/n, m/44'/0'/0'/0/n)
-  - Máscara 2^(n-1) + (raw mod 2^(n-1)) contra Puzzles #65 a #70
-  - Atalho inteligente (Short-Circuit no Puzzle #70 para performance)
+Utiliza MULTIPROCESSING para usar TODOS os núcleos do processador (100% CPU).
 """
 
 import os
@@ -15,6 +10,7 @@ import sys
 import json
 import time
 import argparse
+import multiprocessing
 from datetime import datetime
 
 if sys.platform == "win32":
@@ -32,6 +28,12 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
 CHECKPOINT_FILE = os.path.join(BASE_DIR, "data", "seed_checkpoint.json")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
+
+def worker_check_seed(seed_item, known_db):
+    """Função executada em paralelo em cada núcleo do CPU."""
+    if verify_full_seed(seed_item, known_db):
+        return seed_item
+    return None
 
 def carregar_checkpoint() -> dict:
     if os.path.exists(CHECKPOINT_FILE):
@@ -64,16 +66,18 @@ def salvar_checkpoint(last_seed, total_scanned: int):
         json.dump(data, f, indent=2)
 
 def main():
-    parser = argparse.ArgumentParser(description="Orquestrador BIP32 Multi-Path 100% Criptográfico Real")
-    parser.add_argument("--batch", "--batch-size", type=int, default=100, help="Tamanho do lote CPU (default: 100)")
+    num_cores = multiprocessing.cpu_count()
+    parser = argparse.ArgumentParser(description="Orquestrador BIP32 Multi-Core 100% CPU")
+    parser.add_argument("--batch", "--batch-size", type=int, default=1000, help="Tamanho do lote por ciclo")
+    parser.add_argument("--workers", type=int, default=num_cores, help=f"Número de núcleos CPU (default: {num_cores})")
     parser.add_argument("--mode", type=str, default="timestamp",
                         choices=["timestamp", "sha256", "40bit", "wordlist"],
                         help="Tipo de semente a varrer via SeedGenerator")
     args = parser.parse_args()
 
     print("=" * 80, flush=True)
-    print(" 🚀 ORQUESTRADOR BIP32 MULTI-PATH 100% CRIPTOGRÁFICO - BITCOIN PUZZLE #71", flush=True)
-    print(f"  Modo Ativo: {args.mode.upper()} | Validação Criptográfica Real em 4 Caminhos BIP32", flush=True)
+    print(f" 🚀 ORQUESTRADOR BIP32 MULTI-CORE (PARALELISMO EM {args.workers} NÚCLEOS CPU)", flush=True)
+    print(f"  Modo Ativo: {args.mode.upper()} | Uso Total do Processador em Tempo Real", flush=True)
     print("=" * 80, flush=True)
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -83,7 +87,7 @@ def main():
     total_scanned = cp.get("total_scanned", 0)
     start_seed_val = cp.get("last_seed", 1388534400)
 
-    # Seleciona o gerador apropriado
+    # Instanciar gerador
     if args.mode == "timestamp":
         gen = SeedGenerator.generate_timestamps(2014, 2016, count=10**12)
     elif args.mode == "sha256":
@@ -97,40 +101,46 @@ def main():
     lote_num = 0
     t_start = time.time()
     batch = []
-    cpu_batch = max(1, min(args.batch, 500))
+    cpu_batch = max(args.workers * 10, args.batch)
 
-    try:
-        for seed in gen:
-            batch.append(seed)
+    # Pool de multiprocessamento paralelo
+    with multiprocessing.Pool(processes=args.workers) as pool:
+        try:
+            for seed in gen:
+                batch.append(seed)
 
-            if len(batch) < cpu_batch:
-                continue
+                if len(batch) < cpu_batch:
+                    continue
 
-            lote_num += 1
+                lote_num += 1
 
-            # Checkpoint PRÉ-LOTE para imunidade total contra perda de progresso
-            salvar_checkpoint(batch[0], total_scanned)
+                # Checkpoint PRÉ-LOTE
+                salvar_checkpoint(batch[0], total_scanned)
 
-            for s in batch:
-                if verify_full_seed(s, known_db):
-                    with open(WIN_FILE, "w", encoding="utf-8") as f:
-                        f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {s}\nData: {datetime.now().isoformat()}\n")
-                    print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
-                    return
+                # Processamento paralelo em TODOS OS NÚCLEOS DO CPU
+                results = pool.starmap(worker_check_seed, [(s, known_db) for s in batch])
 
-            total_scanned += len(batch)
-            last = batch[-1]
+                for res_seed in results:
+                    if res_seed is not None:
+                        with open(WIN_FILE, "w", encoding="utf-8") as f:
+                            f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {res_seed}\nData: {datetime.now().isoformat()}\n")
+                        print("\n🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
+                        return
 
-            # Checkpoint PÓS-LOTE
-            salvar_checkpoint(last, total_scanned)
+                total_scanned += len(batch)
+                last = batch[-1]
 
-            elapsed = time.time() - t_start
-            s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
-            print(f"  [Lote #{lote_num:04d}] ÚLTIMA SEMENTE: {s_repr} | Varridos: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
-            batch = []
+                # Checkpoint PÓS-LOTE
+                salvar_checkpoint(last, total_scanned)
 
-    except KeyboardInterrupt:
-        print(f"\n[!] Pausado pelo usuário. Total varrido: {total_scanned:,}", flush=True)
+                elapsed = time.time() - t_start
+                s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
+                speed = total_scanned / elapsed if elapsed > 0 else 0
+                print(f"  [Lote #{lote_num:04d}] ÚLTIMA SEMENTE: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} sementes/s) | Tempo: {elapsed:.1f}s", flush=True)
+                batch = []
+
+        except KeyboardInterrupt:
+            print(f"\n[!] Pausado pelo usuário. Total varrido: {total_scanned:,}", flush=True)
 
 if __name__ == "__main__":
     main()
