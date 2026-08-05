@@ -75,7 +75,7 @@ def compilar_kernel_cuda() -> bool:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch", type=int, default=500000000, help="Tamanho do lote GPU")
+    parser.add_argument("--batch", "--batch-size", type=int, default=500000000, help="Tamanho do lote GPU")
     parser.add_argument("--mode", type=str, default="timestamp",
                         choices=["timestamp", "sha256", "40bit", "wordlist"],
                         help="Tipo de semente a varrer")
