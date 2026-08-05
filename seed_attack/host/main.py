@@ -106,14 +106,14 @@ def main():
     lote_num = 0
     t_start = time.time()
 
-    # MODO 1: Se for timestamp numérico e o executável GPU estiver pronto, roda no Kernel CUDA
+    # MODO 1: GPU CUDA Kernel (Timestamp inteiros)
     if args.mode == "timestamp" and os.path.exists(GPU_EXE):
         current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
         while True:
             lote_num += 1
             t0 = time.time()
 
-            # Salva o checkpoint PRÉ-LOTE para resiliência total contra paradas inesperadas
+            # CHECKPOINT PRÉ-LOTE (Salva o estado EXATAMENTE antes de invocar o subprocesso GPU)
             salvar_checkpoint(current_seed, total_scanned)
 
             res = subprocess.run([GPU_EXE, str(current_seed), str(args.batch)], capture_output=True, text=True)
@@ -130,6 +130,8 @@ def main():
 
             current_seed += args.batch
             total_scanned += args.batch
+
+            # CHECKPOINT PÓS-LOTE
             salvar_checkpoint(current_seed, total_scanned)
 
             elapsed = time.time() - t_start
@@ -154,7 +156,7 @@ def main():
             gen = SeedGenerator.generate_wordlist_passphrases(words)
 
         batch = []
-        cpu_batch = min(args.batch, 10000)
+        cpu_batch = min(args.batch, 1000) # Lote leve de 1000 itens no CPU
 
         for seed in gen:
             batch.append(seed)
