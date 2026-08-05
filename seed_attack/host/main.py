@@ -1,6 +1,8 @@
 """
 ORQUESTRADOR CONTÍNUO DE VARREDURA DE SEMENTES GPU / CPU - BITCOIN PUZZLE #71
 Autor: Antigravity AI Engine
+
+Integrado 100% com o SeedGenerator para todos os modos (timestamp, sha256, 40bit, wordlist).
 """
 
 import os
@@ -44,8 +46,15 @@ def carregar_checkpoint() -> dict:
     }
 
 def salvar_checkpoint(last_seed, total_scanned: int):
+    if isinstance(last_seed, int):
+        val = last_seed
+    elif isinstance(last_seed, bytes):
+        val = int.from_bytes(last_seed[:8], 'big')
+    else:
+        val = str(last_seed)
+
     data = {
-        "last_seed": last_seed if isinstance(last_seed, int) else int.from_bytes(last_seed[:8], 'big'),
+        "last_seed": val,
         "total_scanned": total_scanned,
         "updated_at": datetime.now().isoformat()
     }
@@ -74,16 +83,16 @@ def compilar_kernel_cuda() -> bool:
     return False
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--batch", "--batch-size", type=int, default=500000000, help="Tamanho do lote GPU")
+    parser = argparse.ArgumentParser(description="Orquestrador GPU/CPU de Varredura de Sementes")
+    parser.add_argument("--batch", "--batch-size", type=int, default=100000000, help="Tamanho do lote GPU / CPU")
     parser.add_argument("--mode", type=str, default="timestamp",
                         choices=["timestamp", "sha256", "40bit", "wordlist"],
-                        help="Tipo de semente a varrer")
+                        help="Tipo de semente a varrer via SeedGenerator")
     args = parser.parse_args()
 
     print("=" * 80)
-    print(" 🚀 ORQUESTRADOR GPU - VARREDURA DE SEMENTES PUZZLE #71")
-    print(f"  Modo: {args.mode} | Batch: {args.batch:,}")
+    print(" 🚀 ORQUESTRADOR DE SEMENTES PUZZLE #71 - SEED GENERATOR INTEGRADO")
+    print(f"  Modo Ativo: {args.mode.upper()} | Tamanho do Lote: {args.batch:,}")
     print("=" * 80)
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -94,83 +103,82 @@ def main():
 
     cp = carregar_checkpoint()
     total_scanned = cp.get("total_scanned", 0)
+    start_seed_val = cp.get("last_seed", 1388534400)
 
-    # Escolhe o gerador
+    # Instanciar o SeedGenerator de acordo com o modo selecionado pelo usuário
     if args.mode == "timestamp":
         gen = SeedGenerator.generate_timestamps(2014, 2016, count=10**12)
     elif args.mode == "sha256":
         gen = SeedGenerator.generate_sha256_timestamps(2014, 2016, count=10**12)
     elif args.mode == "40bit":
-        start = cp.get("last_seed", 0)
-        gen = SeedGenerator.generate_40_48bit(start=start, count=10**12)
+        gen = SeedGenerator.generate_40_48bit(start=start_seed_val if isinstance(start_seed_val, int) else 0, count=10**12)
     else:
         words = ["bitcoin", "satoshi", "puzzle", "nakamoto", "genesis", "secret"]
         gen = SeedGenerator.generate_wordlist_passphrases(words)
 
     lote_num = 0
     t_start = time.time()
-    batch = []
 
-    try:
-        if args.mode == "timestamp" and os.path.exists(GPU_EXE):
-            # Modo GPU de ultra-alta velocidade para timestamps inteiros
-            current_seed = cp.get("last_seed", 1388534400)
-            while True:
-                lote_num += 1
-                t0 = time.time()
-                res = subprocess.run([GPU_EXE, str(current_seed), str(args.batch)], capture_output=True, text=True)
-                out_line = res.stdout.strip()
-                dt = time.time() - t0
+    # MODO 1: Se for timestamp numérico e o executável GPU estiver pronto, roda no Kernel CUDA de ultra-alta velocidade
+    if args.mode == "timestamp" and os.path.exists(GPU_EXE):
+        current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
+        while True:
+            lote_num += 1
+            t0 = time.time()
 
-                speed_str = "1100.0"
-                if "SPEED_MKEYS:" in out_line:
-                    try:
-                        parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
-                        speed_str = parts.get("SPEED_MKEYS", "1100.0")
-                    except Exception:
-                        pass
+            res = subprocess.run([GPU_EXE, str(current_seed), str(args.batch)], capture_output=True, text=True)
+            out_line = res.stdout.strip()
+            dt = time.time() - t0
 
-                current_seed += args.batch
-                total_scanned += args.batch
-                salvar_checkpoint(current_seed, total_scanned)
-
-                elapsed = time.time() - t_start
-                print(f"  [Lote #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s")
-
-                if "FOUND:1" in out_line:
+            speed_str = "1100.0"
+            if "SPEED_MKEYS:" in out_line:
+                try:
                     parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
-                    found_seed = int(parts.get("SEED", 0))
-                    if verify_full_seed(found_seed, known_db):
-                        with open(WIN_FILE, "w", encoding="utf-8") as f:
-                            f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {found_seed}\nData: {datetime.now().isoformat()}\n")
-                        print("🏆 PUZZLE #71 RESOLVIDO!")
-                        return
-        else:
-            # Modo em lote via gerador
-            for seed in gen:
-                batch.append(seed)
+                    speed_str = parts.get("SPEED_MKEYS", "1100.0")
+                except Exception:
+                    pass
 
-                if len(batch) < args.batch and len(batch) < 10000:
-                    continue
+            current_seed += args.batch
+            total_scanned += args.batch
+            salvar_checkpoint(current_seed, total_scanned)
 
-                lote_num += 1
-                for s in batch:
-                    if verify_full_seed(s, known_db):
-                        with open(WIN_FILE, "w", encoding="utf-8") as f:
-                            f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {s}\nData: {datetime.now().isoformat()}\n")
-                        print("🏆 PUZZLE #71 RESOLVIDO!")
-                        return
+            elapsed = time.time() - t_start
+            print(f"  [Lote #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s")
 
-                total_scanned += len(batch)
-                last = batch[-1]
-                salvar_checkpoint(last, total_scanned)
+            if "FOUND:1" in out_line:
+                parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
+                found_seed = int(parts.get("SEED", 0))
+                if verify_full_seed(found_seed, known_db):
+                    with open(WIN_FILE, "w", encoding="utf-8") as f:
+                        f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {found_seed}\nData: {datetime.now().isoformat()}\n")
+                    print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!")
+                    return
+    else:
+        # MODO 2: Stream via SeedGenerator para SHA256 (bytes), 40-bits e Wordlists
+        batch = []
+        for seed in gen:
+            batch.append(seed)
 
-                elapsed = time.time() - t_start
-                print(f"  [Lote #{lote_num:04d}] Varridos: {total_scanned:,} | Tempo: {elapsed:.1f}s")
-                batch = []
+            # Acumular lote configurável (ou até atingir limite razoável para checagem)
+            if len(batch) < args.batch and len(batch) < 50000:
+                continue
 
-    except KeyboardInterrupt:
-        print(f"\n[!] Pausado pelo usuário. Total varrido: {total_scanned:,}")
+            lote_num += 1
+            for s in batch:
+                if verify_full_seed(s, known_db):
+                    with open(WIN_FILE, "w", encoding="utf-8") as f:
+                        f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {s}\nData: {datetime.now().isoformat()}\n")
+                    print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!")
+                    return
+
+            total_scanned += len(batch)
+            last = batch[-1]
+            salvar_checkpoint(last, total_scanned)
+
+            elapsed = time.time() - t_start
+            s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
+            print(f"  [Lote #{lote_num:04d}] Ultima Semente: {s_repr} | Total Varrido: {total_scanned:,} | Tempo: {elapsed:.1f}s")
+            batch = []
 
 if __name__ == "__main__":
     main()
