@@ -1,5 +1,5 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (INTERFACE DISTINTA POR MODO)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (INTERFACE DISTINTA E RESILIENTE)
 Autor: Antigravity AI Engine
 """
 
@@ -99,7 +99,6 @@ def main():
                         help="Tipo de semente a varrer via SeedGenerator")
     args = parser.parse_args()
 
-    # BANNERS EXCLUSIVOS E VISUALMENTE UNICOS POR MODO
     print("=" * 80, flush=True)
     if args.mode == "timestamp":
         print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (DATAS 2013-2017) - GPU CUDA", flush=True)
@@ -120,7 +119,18 @@ def main():
 
     cp = carregar_checkpoint(args.mode)
     total_scanned = cp.get("total_scanned", 0)
-    start_seed_val = cp.get("last_seed", 1388534400 if args.mode == "timestamp" else 0)
+    raw_start_seed = cp.get("last_seed", 1388534400 if args.mode == "timestamp" else 0)
+
+    # RECONVERSÃO SEGURA DE CHECKPOINT HEX PARA BYTES
+    if isinstance(raw_start_seed, str) and args.mode in ["sha256", "wordlist"]:
+        try:
+            start_seed_val = bytes.fromhex(raw_start_seed)
+        except Exception:
+            start_seed_val = raw_start_seed
+    elif isinstance(raw_start_seed, str) and raw_start_seed.isdigit():
+        start_seed_val = int(raw_start_seed)
+    else:
+        start_seed_val = raw_start_seed
 
     lote_num = 0
     t_start = time.time()
