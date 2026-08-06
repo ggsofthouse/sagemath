@@ -1,5 +1,5 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COM DUPLA VERIFICAÇÃO E FIM DE JANELA)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COBERTURA HISTÓRICA 2014-2015)
 Autor: Antigravity AI Engine
 """
 
@@ -30,8 +30,9 @@ DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
-# Limite estrito da janela histórica prioritária: 31 de Maio de 2015
-MAX_PRIORITY_TIMESTAMP = 1433116799 
+# Janela Histórica Expandida: 1º Jan 2014 a 31 Dez 2015 (~63 milhões de segundos)
+START_HISTORICAL_TIMESTAMP = 1388534400 # 2014-01-01
+MAX_HISTORICAL_TIMESTAMP   = 1451606399 # 2015-12-31
 
 GLOBAL_KNOWN_DB = None
 
@@ -56,7 +57,7 @@ def carregar_checkpoint(mode: str) -> dict:
         except Exception:
             pass
     return {
-        "last_seed": 1420070400 if mode == "timestamp" else 0,
+        "last_seed": START_HISTORICAL_TIMESTAMP if mode == "timestamp" else 0,
         "total_scanned": 0,
         "mode": mode,
         "created_at": datetime.now().isoformat()
@@ -104,10 +105,10 @@ def main():
 
     print("=" * 80, flush=True)
     if args.mode == "timestamp":
-        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (JAN-MAI 2015) - GPU CUDA", flush=True)
+        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (EXPANDIDO 2014-2015) - GPU CUDA", flush=True)
         print(f"  Hardware: Placa de Vídeo GPU CUDA | Lote GPU: {args.batch:,} sementes", flush=True)
     elif args.mode == "sha256":
-        print(" 🔐 [ATAQUE #2] VARREDURA DE HASHES CRIPTOGRÁFICOS SHA256(TIMESTAMP 2015) - CPU MULTI-CORE", flush=True)
+        print(" 🔐 [ATAQUE #2] VARREDURA DE HASHES CRIPTOGRÁFICOS SHA256(TIMESTAMP 2014-2015) - CPU", flush=True)
         print(f"  Hardware: {args.threads} Threads CPU em Paralelo | Lote CPU: {args.batch:,}", flush=True)
     elif args.mode == "40bit":
         print(" 🔢 [ATAQUE #3] VARREDURA DE INTEIROS 40-48 BITS (BAIXA ENTROPIA) - GPU CUDA", flush=True)
@@ -122,7 +123,7 @@ def main():
 
     cp = carregar_checkpoint(args.mode)
     total_scanned = cp.get("total_scanned", 0)
-    raw_start_seed = cp.get("last_seed", 1420070400 if args.mode == "timestamp" else 0)
+    raw_start_seed = cp.get("last_seed", START_HISTORICAL_TIMESTAMP if args.mode == "timestamp" else 0)
 
     if isinstance(raw_start_seed, str) and args.mode in ["sha256", "wordlist"]:
         try:
@@ -139,11 +140,11 @@ def main():
 
     # MODO 1 & 3: ACELERADO POR GPU CUDA (Timestamp / 40bit)
     if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"] and compilar_kernel_cuda():
-        current_seed = start_seed_val if isinstance(start_seed_val, int) else 1420070400
+        current_seed = start_seed_val if isinstance(start_seed_val, int) else START_HISTORICAL_TIMESTAMP
         while True:
-            # Trava de conclusão da janela prioritária de Timestamps
-            if args.mode == "timestamp" and current_seed > MAX_PRIORITY_TIMESTAMP:
-                print(f"\n  [OK] Janela prioritária Histórica (Jan-Mai 2015) esgotada com sucesso!", flush=True)
+            # Trava de conclusão da janela histórica expandida (2014-2015)
+            if args.mode == "timestamp" and current_seed > MAX_HISTORICAL_TIMESTAMP:
+                print(f"\n  [OK] Janela histórica expandida (2014-2015) esgotada com sucesso!", flush=True)
                 return
 
             lote_num += 1
@@ -187,13 +188,13 @@ def main():
     else:
         # MODO 2 & 4: STREAMING MULTI-THREAD CPU
         if args.mode == "sha256":
-            gen = SeedGenerator.generate_sha256_timestamps(2015, 2015)
+            gen = SeedGenerator.generate_sha256_timestamps(2014, 2015)
         elif args.mode == "40bit":
             gen = SeedGenerator.generate_40_48bit(start=start_seed_val if isinstance(start_seed_val, int) else 0)
         elif args.mode == "wordlist":
             gen = SeedGenerator.generate_wordlist_passphrases()
         else:
-            gen = SeedGenerator.generate_timestamps(2015, 2015)
+            gen = SeedGenerator.generate_timestamps(2014, 2015)
 
         batch = []
         cpu_batch = max(args.threads * 50, 1000)
