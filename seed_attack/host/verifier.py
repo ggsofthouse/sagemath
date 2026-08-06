@@ -7,6 +7,7 @@ Otimizações de Alta Performance:
   2. Short-Circuiting Imediato no Puzzle #70 (descarte instantâneo em 99,9999% dos casos).
   3. Pré-computação Bitwise de Máscaras: (1 << (n-1)) | (raw & ((1 << (n-1)) - 1)).
   4. Validação em 4 Caminhos BIP32 Clássicos (m/0/n, m/n, m/0'/n, m/44'/0'/0'/0/n).
+  5. Módulo da Ordem da Curva secp256k1 (N) aplicado rigorosamente.
 """
 
 import hmac
@@ -18,7 +19,9 @@ try:
 except ImportError:
     HAS_COINCURVE = False
 
-# Fallback em Pure Python (apenas se coincurve não estiver instalado)
+# Ordem da Curva secp256k1 (BIP32 Spec)
+SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+
 P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
 Gx = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
 Gy = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
@@ -66,8 +69,8 @@ def apply_puzzle_mask(raw_val: int, n: int) -> int:
 def privkey_to_pubkey_bytes(privkey_int: int) -> bytes:
     """Retorna chave pública comprimida de 33 bytes via C-Native Coincurve (com fallback)."""
     if HAS_COINCURVE:
-        return PrivateKey(privkey_int.to_bytes(32, 'big')).public_key.format(compressed=True)
-    pt = point_mul(privkey_int)
+        return PrivateKey((privkey_int % SECP256K1_N).to_bytes(32, 'big')).public_key.format(compressed=True)
+    pt = point_mul(privkey_int % SECP256K1_N)
     prefix = b'\x02' if pt[1] % 2 == 0 else b'\x03'
     return prefix + pt[0].to_bytes(32, 'big')
 
@@ -90,13 +93,14 @@ def privkey_to_address_fast(privkey_int: int) -> str:
 
 def derive_bip32_master(seed_bytes: bytes):
     h = hmac.new(b"Bitcoin seed", seed_bytes, hashlib.sha512).digest()
-    return int.from_bytes(h[:32], 'big'), h[32:]
+    master_priv = int.from_bytes(h[:32], 'big') % SECP256K1_N
+    return master_priv, h[32:]
 
 def derive_unhardened_child(master_priv: int, master_chain: bytes, index: int):
     pub_bytes = privkey_to_pubkey_bytes(master_priv)
     msg = pub_bytes + index.to_bytes(4, 'big')
     h = hmac.new(master_chain, msg, hashlib.sha512).digest()
-    child_priv = (int.from_bytes(h[:32], 'big') + master_priv) % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+    child_priv = (int.from_bytes(h[:32], 'big') + master_priv) % SECP256K1_N
     return child_priv
 
 def verify_full_seed(seed_input, known_db=None) -> bool:
@@ -131,7 +135,7 @@ def verify_full_seed(seed_input, known_db=None) -> bool:
                 pub = privkey_to_pubkey_bytes(curr_priv)
                 msg = pub + idx.to_bytes(4, 'big')
             h = hmac.new(curr_chain, msg, hashlib.sha512).digest()
-            curr_priv = (int.from_bytes(h[:32], 'big') + curr_priv) % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+            curr_priv = (int.from_bytes(h[:32], 'big') + curr_priv) % SECP256K1_N
             curr_chain = h[32:]
 
         # SHORT-CIRCUIT AGRESSIVO no PUZZLE #70!
