@@ -1,6 +1,12 @@
 """
 GERADOR DE CANDIDATOS DE SEMENTE ULTRA-BRUTO - HOST CPU
 Autor: Antigravity AI Engine
+
+Geração Massiva de Hipóteses:
+  1. Timestamps UNIX Estendidos (2013-2017) em formato int e byte
+  2. Multi-Hashes (SHA256(int), SHA256(str), SHA1, MD5)
+  3. Sementes numéricas de 32, 40, 48, 56 e 64 bits
+  4. Passphrases / Brainwallets de dicionários cripto expandidos com separadores ("", "_", "-", " ") e sufixos 0-1000
 """
 
 import math
@@ -58,22 +64,23 @@ class SeedGenerator:
 
     @staticmethod
     def generate_wordlist_passphrases(words=None, max_pass_len=4):
-        """Gera passphrases de palavras-chave clássicas de Bitcoin (0-1000)."""
+        """Gera passphrases de palavras-chave clássicas de Bitcoin com dicionário expandido e separadores."""
         if not words:
             words = [
                 "bitcoin", "satoshi", "puzzle", "nakamoto", "genesis", "secret",
                 "wallet", "key", "passphrase", "master", "seed", "blockchain",
-                "crypto", "private", "public", "coin", "gold", "money", "vault"
+                "crypto", "private", "public", "coin", "gold", "money", "vault",
+                "password", "admin", "root", "test", "123456", "qwerty",
+                "letmein", "welcome", "monkey", "dragon", "master", "login"
             ]
         for w in words:
             yield w.encode('utf-8')
             yield hashlib.sha256(w.encode('utf-8')).digest()
-            for i in range(1000):
-                phrase = f"{w}{i}"
-                phrase_under = f"{w}_{i}"
-                yield phrase.encode('utf-8')
-                yield phrase_under.encode('utf-8')
-                yield hashlib.sha256(phrase.encode('utf-8')).digest()
+            for i in range(0, 1001):
+                for sep in ["", "_", "-", " "]:
+                    phrase = f"{w}{sep}{i}"
+                    yield phrase.encode('utf-8')
+                    yield hashlib.sha256(phrase.encode('utf-8')).digest()
 
     @staticmethod
     def generate_brainwallet_dictionary():

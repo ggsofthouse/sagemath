@@ -6,7 +6,7 @@ Melhorias:
   1. Timeout configurável de 60 segundos por modelo.
   2. Suporte a BitVecs de 64, 128 e 256 bits para as variáveis LCG (A, C, M).
   3. Restrição de M a potências de 2 (2^32, 2^48, 2^64, 2^128, 2^256).
-  4. Validação estrita acumulada contra os Puzzles #65, #66, #67, #68, #69, #70.
+  4. Validação estrita acumulada e validação cruzada completa contra os Puzzles #65 a #70.
   5. Verificação final de endereço Bitcoin P2PKH (1PWo3Jeb9jrGwfHDNpdGK54CRas7fsVzXU).
 """
 
@@ -100,7 +100,6 @@ def testar_z3_bits(bit_width: int, timeout_ms: int = 60000) -> bool:
     solver.add(M > 1)
     solver.add(A > 1)
 
-    # Adicionar equações para puzzles #65 a #70
     vals_masked = {n: SOLVED_KEYS[n] - (1 << (n - 1)) for n in TEST_PUZZLES}
     
     for i in range(len(TEST_PUZZLES) - 1):
@@ -120,6 +119,21 @@ def testar_z3_bits(bit_width: int, timeout_ms: int = 60000) -> bool:
         print(f"  A = {hex(a_val)}")
         print(f"  C = {hex(c_val)}")
         print(f"  M = {hex(m_val)}")
+
+        # Validação cruzada estrita contra todos os puzzles de controle
+        cross_valid = True
+        for i in range(len(TEST_PUZZLES) - 1):
+            n1 = TEST_PUZZLES[i]
+            n2 = TEST_PUZZLES[i + 1]
+            if (a_val * vals_masked[n1] + c_val) % m_val != vals_masked[n2]:
+                cross_valid = False
+                break
+
+        if not cross_valid:
+            print("  [!] Modelo encontrado mas NÃO passou na validação cruzada estrita.")
+            return False
+
+        print("  [OK] Modelo validado 100% em validação cruzada contra todos os puzzles anteriores!")
 
         # Extrapolar para o Puzzle #71
         v70_raw = vals_masked[70]
