@@ -1,5 +1,5 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COBERTURA HISTÓRICA 2014-2015)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COM TÉRMINO GARANTIDO DE ETAPAS)
 Autor: Antigravity AI Engine
 """
 
@@ -30,9 +30,12 @@ DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
-# Janela Histórica Expandida: 1º Jan 2014 a 31 Dez 2015 (~63 milhões de segundos)
+# Trava estrita para Timestamps (2014-2015)
 START_HISTORICAL_TIMESTAMP = 1388534400 # 2014-01-01
 MAX_HISTORICAL_TIMESTAMP   = 1451606399 # 2015-12-31
+
+# Trava estrita para Inteiros 40-48bit (máximo de 48 bits: 2^48 = 281.474.976.710.656)
+MAX_40BIT_RANGE = 1 << 48 
 
 GLOBAL_KNOWN_DB = None
 
@@ -140,11 +143,16 @@ def main():
 
     # MODO 1 & 3: ACELERADO POR GPU CUDA (Timestamp / 40bit)
     if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"] and compilar_kernel_cuda():
-        current_seed = start_seed_val if isinstance(start_seed_val, int) else START_HISTORICAL_TIMESTAMP
+        current_seed = start_seed_val if isinstance(start_seed_val, int) else (START_HISTORICAL_TIMESTAMP if args.mode == "timestamp" else 0)
         while True:
-            # Trava de conclusão da janela histórica expandida (2014-2015)
+            # Trava 1: Esgotamento da janela de Timestamps (2014-2015)
             if args.mode == "timestamp" and current_seed > MAX_HISTORICAL_TIMESTAMP:
                 print(f"\n  [OK] Janela histórica expandida (2014-2015) esgotada com sucesso!", flush=True)
+                return
+
+            # Trava 2: Esgotamento do intervalo de 40-48 bits (2^48)
+            if args.mode == "40bit" and current_seed >= MAX_40BIT_RANGE:
+                print(f"\n  [OK] Varredura de sementes 40-48 bits finalizada com sucesso!", flush=True)
                 return
 
             lote_num += 1
@@ -186,7 +194,7 @@ def main():
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
                     return
     else:
-        # MODO 2 & 4: STREAMING MULTI-THREAD CPU
+        # MODO 2 & 4: STREAMING MULTI-THREAD CPU (SHA256 / Wordlist)
         if args.mode == "sha256":
             gen = SeedGenerator.generate_sha256_timestamps(2014, 2015)
         elif args.mode == "40bit":
@@ -235,6 +243,16 @@ def main():
                         print(f"  [⚙️ CPU #{lote_num:04d}] Semente: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
 
                     batch = []
+
+                # Ao terminar o gerador (ex: SHA256 ou Wordlist)
+                if batch:
+                    for res_seed in pool.imap_unordered(worker_check_seed_fast, batch, chunksize=100):
+                        if res_seed is not None:
+                            with open(WIN_FILE, "w", encoding="utf-8") as f:
+                                f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {res_seed}\nData: {datetime.now().isoformat()}\n")
+                            print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
+                            return
+                print(f"\n  [OK] Etapa {args.mode.upper()} finalizada com sucesso!", flush=True)
 
             except KeyboardInterrupt:
                 print(f"\n[!] Pausado pelo usuário. Total varrido: {total_scanned:,}", flush=True)
