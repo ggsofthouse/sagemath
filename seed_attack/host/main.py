@@ -1,8 +1,6 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (CHECKPOINTS ISOLADOS POR MODO)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (INTERFACE DISTINTA POR MODO)
 Autor: Antigravity AI Engine
-
-Permite rodar múltiplos modos simultaneamente em janelas isoladas sem conflito de checkpoint.
 """
 
 import os
@@ -101,9 +99,20 @@ def main():
                         help="Tipo de semente a varrer via SeedGenerator")
     args = parser.parse_args()
 
+    # BANNERS EXCLUSIVOS E VISUALMENTE UNICOS POR MODO
     print("=" * 80, flush=True)
-    print(f" 🚀 SEED ATTACK ENGINE - MODO: {args.mode.upper()}", flush=True)
-    print(f"  Threads CPU Ativas: {args.threads} | Lote: {args.batch:,} | Checkpoint: seed_checkpoint_{args.mode}.json", flush=True)
+    if args.mode == "timestamp":
+        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (DATAS 2013-2017) - GPU CUDA", flush=True)
+        print(f"  Hardware: Placa de Vídeo GPU CUDA | Lote GPU: {args.batch:,} sementes", flush=True)
+    elif args.mode == "sha256":
+        print(" 🔐 [ATAQUE #2] VARREDURA DE HASHES CRIPTOGRÁFICOS SHA256(TIMESTAMP) - CPU MULTI-CORE", flush=True)
+        print(f"  Hardware: {args.threads} Threads CPU em Paralelo | Lote CPU: {args.batch:,}", flush=True)
+    elif args.mode == "40bit":
+        print(" 🔢 [ATAQUE #3] VARREDURA DE INTEIROS 40-48 BITS (BAIXA ENTROPIA) - GPU CUDA", flush=True)
+        print(f"  Hardware: Placa de Vídeo GPU CUDA | Lote GPU: {args.batch:,} sementes", flush=True)
+    elif args.mode == "wordlist":
+        print(" 📝 [ATAQUE #4] DICTIONARY & BRAINWALLET PASSPHRASES (PALAVRAS-CHAVE) - CPU", flush=True)
+        print(f"  Hardware: {args.threads} Threads CPU em Paralelo | Dicionário Cripto + Números 0-1000", flush=True)
     print("=" * 80, flush=True)
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -116,7 +125,7 @@ def main():
     lote_num = 0
     t_start = time.time()
 
-    # CAMINHO ACELERADO POR GPU CUDA (Timestamp / 40bit)
+    # MODO 1 & 3: ACELERADO POR GPU CUDA (Timestamp / 40bit)
     if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"] and compilar_kernel_cuda():
         current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
         while True:
@@ -139,7 +148,15 @@ def main():
             salvar_checkpoint(current_seed, total_scanned, args.mode)
 
             elapsed = time.time() - t_start
-            print(f"  [{args.mode.upper()} - Lote GPU #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
+
+            if args.mode == "timestamp":
+                try:
+                    dt_str = datetime.fromtimestamp(current_seed - args.batch).strftime('%Y-%m-%d')
+                except Exception:
+                    dt_str = "Data?"
+                print(f"  [📅 TIMESTAMP - GPU #{lote_num:04d}] Data: {dt_str} (TS: {current_seed - args.batch}) | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
+            else:
+                print(f"  [🔢 40-BIT - GPU #{lote_num:04d}] Range: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
 
             if "FOUND:1" in out_line:
                 parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
@@ -151,7 +168,7 @@ def main():
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
                     return
     else:
-        # CAMINHO STREAMING MULTI-THREAD CPU
+        # MODO 2 & 4: STREAMING MULTI-THREAD CPU (SHA256 / Wordlist)
         if args.mode == "sha256":
             gen = SeedGenerator.generate_sha256_timestamps(2013, 2017)
         elif args.mode == "40bit":
@@ -191,7 +208,14 @@ def main():
                     elapsed = time.time() - t_start
                     s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
                     speed = total_scanned / elapsed if elapsed > 0 else 0
-                    print(f"  [{args.mode.upper()} - Lote CPU #{lote_num:04d}] Última Semente: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
+
+                    if args.mode == "sha256":
+                        print(f"  [🔐 SHA256 - CPU #{lote_num:04d}] Úl. Hash: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
+                    elif args.mode == "wordlist":
+                        print(f"  [📝 WORDLIST - CPU #{lote_num:04d}] Úl. Pass: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
+                    else:
+                        print(f"  [⚙️ CPU #{lote_num:04d}] Semente: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
+
                     batch = []
 
             except KeyboardInterrupt:
