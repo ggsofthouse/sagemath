@@ -1,13 +1,10 @@
 """
-VERIFICADOR CRIPTOGRÁFICO DE ALTA PERFORMANCE (NATIVO COINCURVE C-ENGINE COM FALLBACK)
+VERIFICADOR CRIPTOGRÁFICO DE ALTA PERFORMANCE (NATIVO COINCURVE C-ENGINE COM DUPLA DEDUÇÃO)
 Autor: Antigravity AI Engine
 
-Otimizações de Alta Performance:
-  1. Aceleração C-Native com library `coincurve` (secp256k1 compilado em C puro).
-  2. Short-Circuiting Imediato no Puzzle #70 (descarte instantâneo em 99,9999% dos casos).
-  3. Pré-computação Bitwise de Máscaras: (1 << (n-1)) | (raw & ((1 << (n-1)) - 1)).
-  4. Validação em 4 Caminhos BIP32 Clássicos (m/0/n, m/n, m/0'/n, m/44'/0'/0'/0/n).
-  5. Módulo da Ordem da Curva secp256k1 (N) aplicado rigorosamente.
+Dupla Hipótese de Validação:
+  1. Teste BIP32 Multi-Path (m/0/n, m/n, m/0'/n, m/44'/0'/0'/0/n) com máscara dos Puzzles #65-#70.
+  2. Teste DIRETO de Chave Privada do Puzzle #71: (1 << 70) | (candidate & ((1 << 70) - 1)).
 """
 
 import hmac
@@ -19,7 +16,6 @@ try:
 except ImportError:
     HAS_COINCURVE = False
 
-# Ordem da Curva secp256k1 (BIP32 Spec)
 SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
 P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
@@ -62,12 +58,10 @@ def point_mul(k, p=G):
     return r
 
 def apply_puzzle_mask(raw_val: int, n: int) -> int:
-    """Máscara em C-Native Bitwise ultra-rápida sem modulo '%'."""
     mask_bits = n - 1
     return (1 << mask_bits) | (raw_val & ((1 << mask_bits) - 1))
 
 def privkey_to_pubkey_bytes(privkey_int: int) -> bytes:
-    """Retorna chave pública comprimida de 33 bytes via C-Native Coincurve (com fallback)."""
     if HAS_COINCURVE:
         return PrivateKey((privkey_int % SECP256K1_N).to_bytes(32, 'big')).public_key.format(compressed=True)
     pt = point_mul(privkey_int % SECP256K1_N)
@@ -104,14 +98,29 @@ def derive_unhardened_child(master_priv: int, master_chain: bytes, index: int):
     return child_priv
 
 def verify_full_seed(seed_input, known_db=None) -> bool:
-    """Verifica semente usando Short-Circuiting Agressivo em C-Native."""
+    """Verifica semente testando BIP32 Multi-Path E Chave Privada Direta do Puzzle #71."""
     if isinstance(seed_input, int):
         seed_bytes = seed_input.to_bytes(8, 'big')
-    elif isinstance(seed_input, str):
-        seed_bytes = seed_input.encode('utf-8')
-    else:
+        raw_int = seed_input
+    elif isinstance(seed_input, bytes):
         seed_bytes = seed_input
+        raw_int = int.from_bytes(seed_input, 'big')
+    else:
+        seed_bytes = seed_input.encode('utf-8')
+        raw_int = int.from_bytes(hashlib.sha256(seed_bytes).digest(), 'big')
 
+    # HIPÓTESE A: TESTE DIRETO DE CHAVE PRIVADA DO PUZZLE #71
+    try:
+        direct_priv71 = apply_puzzle_mask(raw_int, 71)
+        if privkey_to_address_fast(direct_priv71) == TARGET_ADDRESS:
+            print(f"\n🎉🎉🎉 CONFIRMAÇÃO TOTAL POR CHAVE DIRETA! 🎉🎉🎉")
+            print(f"🔥 CHAVE PRIVADA PUZZLE #71: {hex(direct_priv71)}")
+            print(f"🏆 ENDEREÇO BITCOIN CONFIRMADO 100%: {TARGET_ADDRESS}")
+            return True
+    except Exception:
+        pass
+
+    # HIPÓTESE B: DERIVAÇÃO BIP32 MULTI-PATH
     try:
         master_priv, master_chain = derive_bip32_master(seed_bytes)
     except Exception:
@@ -159,7 +168,7 @@ def verify_full_seed(seed_input, known_db=None) -> bool:
             addr71 = privkey_to_address_fast(priv71)
 
             if addr71 == TARGET_ADDRESS:
-                print(f"\n🎉🎉🎉 CONFIRMAÇÃO TOTAL NO HOST CPU! 🎉🎉🎉")
+                print(f"\n🎉🎉🎉 CONFIRMAÇÃO TOTAL BIP32 NO HOST CPU! 🎉🎉🎉")
                 print(f"🔥 CHAVE PRIVADA PUZZLE #71: {hex(priv71)}")
                 print(f"🏆 ENDEREÇO BITCOIN CONFIRMADO 100%: {addr71}")
                 return True

@@ -1,5 +1,5 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (FOCO JAN-MAI 2015)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COM DUPLA VERIFICAÇÃO E FIM DE JANELA)
 Autor: Antigravity AI Engine
 """
 
@@ -30,6 +30,9 @@ DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
+# Limite estrito da janela histórica prioritária: 31 de Maio de 2015
+MAX_PRIORITY_TIMESTAMP = 1433116799 
+
 GLOBAL_KNOWN_DB = None
 
 def init_worker(db):
@@ -52,7 +55,6 @@ def carregar_checkpoint(mode: str) -> dict:
                 return json.load(f)
         except Exception:
             pass
-    # Timestamp inicial default: 1º de Janeiro de 2015 (1420070400)
     return {
         "last_seed": 1420070400 if mode == "timestamp" else 0,
         "total_scanned": 0,
@@ -102,7 +104,7 @@ def main():
 
     print("=" * 80, flush=True)
     if args.mode == "timestamp":
-        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (FOCO HISTÓRICO JAN-MAI 2015) - GPU CUDA", flush=True)
+        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (JAN-MAI 2015) - GPU CUDA", flush=True)
         print(f"  Hardware: Placa de Vídeo GPU CUDA | Lote GPU: {args.batch:,} sementes", flush=True)
     elif args.mode == "sha256":
         print(" 🔐 [ATAQUE #2] VARREDURA DE HASHES CRIPTOGRÁFICOS SHA256(TIMESTAMP 2015) - CPU MULTI-CORE", flush=True)
@@ -139,6 +141,11 @@ def main():
     if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"] and compilar_kernel_cuda():
         current_seed = start_seed_val if isinstance(start_seed_val, int) else 1420070400
         while True:
+            # Trava de conclusão da janela prioritária de Timestamps
+            if args.mode == "timestamp" and current_seed > MAX_PRIORITY_TIMESTAMP:
+                print(f"\n  [OK] Janela prioritária Histórica (Jan-Mai 2015) esgotada com sucesso!", flush=True)
+                return
+
             lote_num += 1
             salvar_checkpoint(current_seed, total_scanned, args.mode)
 
@@ -178,7 +185,7 @@ def main():
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
                     return
     else:
-        # MODO 2 & 4: STREAMING MULTI-THREAD CPU (SHA256 / Wordlist)
+        # MODO 2 & 4: STREAMING MULTI-THREAD CPU
         if args.mode == "sha256":
             gen = SeedGenerator.generate_sha256_timestamps(2015, 2015)
         elif args.mode == "40bit":
