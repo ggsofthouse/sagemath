@@ -1,12 +1,8 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COINCURVE C-ENGINE)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (CHECKPOINTS ISOLADOS POR MODO)
 Autor: Antigravity AI Engine
 
-Melhorias Aplicadas:
-  1. Multiprocessing Streaming com imap_unordered + init_worker para compatibilidade total Windows (spawn).
-  2. Pré-carregamento estático do banco de dados conhecido no worker.
-  3. Checkpoint robusto salvando offset + modo + formato hex para sementes de bytes.
-  4. Execução nativa C-Engine via coincurve.
+Permite rodar múltiplos modos simultaneamente em janelas isoladas sem conflito de checkpoint.
 """
 
 import os
@@ -33,13 +29,12 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 GPU_SRC  = os.path.join(BASE_DIR, "gpu", "kernel.cu")
 GPU_EXE  = os.path.join(BASE_DIR, "gpu", "kernel.exe")
 DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
-CHECKPOINT_FILE = os.path.join(BASE_DIR, "data", "seed_checkpoint.json")
+DATA_DIR = os.path.join(BASE_DIR, "data")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
 GLOBAL_KNOWN_DB = None
 
 def init_worker(db):
-    """Inicializador de cada processo worker no Windows (modo spawn)."""
     global GLOBAL_KNOWN_DB
     GLOBAL_KNOWN_DB = db
 
@@ -48,21 +43,26 @@ def worker_check_seed_fast(seed_item):
         return seed_item
     return None
 
-def carregar_checkpoint() -> dict:
-    if os.path.exists(CHECKPOINT_FILE):
+def get_checkpoint_file(mode: str) -> str:
+    return os.path.join(DATA_DIR, f"seed_checkpoint_{mode}.json")
+
+def carregar_checkpoint(mode: str) -> dict:
+    cp_file = get_checkpoint_file(mode)
+    if os.path.exists(cp_file):
         try:
-            with open(CHECKPOINT_FILE, "r", encoding="utf-8") as f:
+            with open(cp_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
     return {
-        "last_seed": 1388534400,
+        "last_seed": 1388534400 if mode == "timestamp" else 0,
         "total_scanned": 0,
-        "mode": "timestamp",
+        "mode": mode,
         "created_at": datetime.now().isoformat()
     }
 
-def salvar_checkpoint(last_seed, total_scanned: int, mode: str = "timestamp"):
+def salvar_checkpoint(last_seed, total_scanned: int, mode: str):
+    cp_file = get_checkpoint_file(mode)
     if isinstance(last_seed, int):
         val = last_seed
     elif isinstance(last_seed, bytes):
@@ -76,7 +76,7 @@ def salvar_checkpoint(last_seed, total_scanned: int, mode: str = "timestamp"):
         "mode": mode,
         "updated_at": datetime.now().isoformat()
     }
-    with open(CHECKPOINT_FILE, "w", encoding="utf-8") as f:
+    with open(cp_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 def compilar_kernel_cuda() -> bool:
@@ -102,16 +102,16 @@ def main():
     args = parser.parse_args()
 
     print("=" * 80, flush=True)
-    print(f" 🚀 SEED ATTACK ENGINE (COINCURVE C-NATIVE STREAMING) - MODO: {args.mode.upper()}", flush=True)
-    print(f"  Threads CPU Ativas: {args.threads} | Lote: {args.batch:,}", flush=True)
+    print(f" 🚀 SEED ATTACK ENGINE - MODO: {args.mode.upper()}", flush=True)
+    print(f"  Threads CPU Ativas: {args.threads} | Lote: {args.batch:,} | Checkpoint: seed_checkpoint_{args.mode}.json", flush=True)
     print("=" * 80, flush=True)
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
         known_db_loaded = json.load(f)
 
-    cp = carregar_checkpoint()
+    cp = carregar_checkpoint(args.mode)
     total_scanned = cp.get("total_scanned", 0)
-    start_seed_val = cp.get("last_seed", 1388534400)
+    start_seed_val = cp.get("last_seed", 1388534400 if args.mode == "timestamp" else 0)
 
     lote_num = 0
     t_start = time.time()
@@ -121,7 +121,6 @@ def main():
         current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
         while True:
             lote_num += 1
-            t0 = time.time()
             salvar_checkpoint(current_seed, total_scanned, args.mode)
 
             res = subprocess.run([GPU_EXE, str(current_seed), str(args.batch)], capture_output=True, text=True)
@@ -140,7 +139,7 @@ def main():
             salvar_checkpoint(current_seed, total_scanned, args.mode)
 
             elapsed = time.time() - t_start
-            print(f"  [Lote GPU #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
+            print(f"  [{args.mode.upper()} - Lote GPU #{lote_num:04d}] Seed: 0x{current_seed - args.batch:x} -> 0x{current_seed:x} | Vel: {float(speed_str):.0f} MKeys/s | Total: {total_scanned:,} | Tempo: {elapsed:.1f}s", flush=True)
 
             if "FOUND:1" in out_line:
                 parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
@@ -152,7 +151,7 @@ def main():
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
                     return
     else:
-        # CAMINHO STREAMING MULTI-THREAD CPU DE ALTA PERFORMANCE (imap_unordered + init_worker)
+        # CAMINHO STREAMING MULTI-THREAD CPU
         if args.mode == "sha256":
             gen = SeedGenerator.generate_sha256_timestamps(2013, 2017)
         elif args.mode == "40bit":
@@ -192,7 +191,7 @@ def main():
                     elapsed = time.time() - t_start
                     s_repr = last.hex()[:16] if isinstance(last, bytes) else str(last)
                     speed = total_scanned / elapsed if elapsed > 0 else 0
-                    print(f"  [Lote CPU #{lote_num:04d}] Última Semente: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
+                    print(f"  [{args.mode.upper()} - Lote CPU #{lote_num:04d}] Última Semente: {s_repr} | Varridos: {total_scanned:,} ({speed:.1f} s/s) | Tempo: {elapsed:.1f}s", flush=True)
                     batch = []
 
             except KeyboardInterrupt:
