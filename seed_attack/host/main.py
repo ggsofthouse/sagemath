@@ -1,5 +1,5 @@
 """
-ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (INTERFACE DISTINTA E RESILIENTE)
+ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (FOCO JAN-MAI 2015)
 Autor: Antigravity AI Engine
 """
 
@@ -52,8 +52,9 @@ def carregar_checkpoint(mode: str) -> dict:
                 return json.load(f)
         except Exception:
             pass
+    # Timestamp inicial default: 1º de Janeiro de 2015 (1420070400)
     return {
-        "last_seed": 1388534400 if mode == "timestamp" else 0,
+        "last_seed": 1420070400 if mode == "timestamp" else 0,
         "total_scanned": 0,
         "mode": mode,
         "created_at": datetime.now().isoformat()
@@ -101,10 +102,10 @@ def main():
 
     print("=" * 80, flush=True)
     if args.mode == "timestamp":
-        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (DATAS 2013-2017) - GPU CUDA", flush=True)
+        print(" 📅 [ATAQUE #1] VARREDURA DE TIMESTAMPS UNIX (FOCO HISTÓRICO JAN-MAI 2015) - GPU CUDA", flush=True)
         print(f"  Hardware: Placa de Vídeo GPU CUDA | Lote GPU: {args.batch:,} sementes", flush=True)
     elif args.mode == "sha256":
-        print(" 🔐 [ATAQUE #2] VARREDURA DE HASHES CRIPTOGRÁFICOS SHA256(TIMESTAMP) - CPU MULTI-CORE", flush=True)
+        print(" 🔐 [ATAQUE #2] VARREDURA DE HASHES CRIPTOGRÁFICOS SHA256(TIMESTAMP 2015) - CPU MULTI-CORE", flush=True)
         print(f"  Hardware: {args.threads} Threads CPU em Paralelo | Lote CPU: {args.batch:,}", flush=True)
     elif args.mode == "40bit":
         print(" 🔢 [ATAQUE #3] VARREDURA DE INTEIROS 40-48 BITS (BAIXA ENTROPIA) - GPU CUDA", flush=True)
@@ -119,9 +120,8 @@ def main():
 
     cp = carregar_checkpoint(args.mode)
     total_scanned = cp.get("total_scanned", 0)
-    raw_start_seed = cp.get("last_seed", 1388534400 if args.mode == "timestamp" else 0)
+    raw_start_seed = cp.get("last_seed", 1420070400 if args.mode == "timestamp" else 0)
 
-    # RECONVERSÃO SEGURA DE CHECKPOINT HEX PARA BYTES
     if isinstance(raw_start_seed, str) and args.mode in ["sha256", "wordlist"]:
         try:
             start_seed_val = bytes.fromhex(raw_start_seed)
@@ -137,7 +137,7 @@ def main():
 
     # MODO 1 & 3: ACELERADO POR GPU CUDA (Timestamp / 40bit)
     if args.use_gpu and os.path.exists(GPU_EXE) and args.mode in ["timestamp", "40bit"] and compilar_kernel_cuda():
-        current_seed = start_seed_val if isinstance(start_seed_val, int) else 1388534400
+        current_seed = start_seed_val if isinstance(start_seed_val, int) else 1420070400
         while True:
             lote_num += 1
             salvar_checkpoint(current_seed, total_scanned, args.mode)
@@ -180,13 +180,13 @@ def main():
     else:
         # MODO 2 & 4: STREAMING MULTI-THREAD CPU (SHA256 / Wordlist)
         if args.mode == "sha256":
-            gen = SeedGenerator.generate_sha256_timestamps(2013, 2017)
+            gen = SeedGenerator.generate_sha256_timestamps(2015, 2015)
         elif args.mode == "40bit":
             gen = SeedGenerator.generate_40_48bit(start=start_seed_val if isinstance(start_seed_val, int) else 0)
         elif args.mode == "wordlist":
             gen = SeedGenerator.generate_wordlist_passphrases()
         else:
-            gen = SeedGenerator.generate_timestamps(2013, 2017)
+            gen = SeedGenerator.generate_timestamps(2015, 2015)
 
         batch = []
         cpu_batch = max(args.threads * 50, 1000)
