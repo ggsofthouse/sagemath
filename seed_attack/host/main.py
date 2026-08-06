@@ -1,6 +1,12 @@
 """
 ORQUESTRADOR DE VARREDURA DE SEMENTES STREAMING MULTI-CORE & GPU (COINCURVE C-ENGINE)
 Autor: Antigravity AI Engine
+
+Melhorias Aplicadas:
+  1. Multiprocessing Streaming com imap_unordered + init_worker para compatibilidade total Windows (spawn).
+  2. Pré-carregamento estático do banco de dados conhecido no worker.
+  3. Checkpoint robusto salvando offset + modo + formato hex para sementes de bytes.
+  4. Execução nativa C-Engine via coincurve.
 """
 
 import os
@@ -30,8 +36,12 @@ DB_FILE  = os.path.join(BASE_DIR, "data", "known_keys.json")
 CHECKPOINT_FILE = os.path.join(BASE_DIR, "data", "seed_checkpoint.json")
 WIN_FILE = os.path.join(BASE_DIR, "SOLVED_PUZZLE71.txt")
 
-with open(DB_FILE, "r", encoding="utf-8") as f:
-    GLOBAL_KNOWN_DB = json.load(f)
+GLOBAL_KNOWN_DB = None
+
+def init_worker(db):
+    """Inicializador de cada processo worker no Windows (modo spawn)."""
+    global GLOBAL_KNOWN_DB
+    GLOBAL_KNOWN_DB = db
 
 def worker_check_seed_fast(seed_item):
     if verify_full_seed(seed_item, GLOBAL_KNOWN_DB):
@@ -56,7 +66,7 @@ def salvar_checkpoint(last_seed, total_scanned: int, mode: str = "timestamp"):
     if isinstance(last_seed, int):
         val = last_seed
     elif isinstance(last_seed, bytes):
-        val = int.from_bytes(last_seed[:8], 'big')
+        val = last_seed.hex()
     else:
         val = str(last_seed)
 
@@ -83,7 +93,7 @@ def compilar_kernel_cuda() -> bool:
 def main():
     num_cores = multiprocessing.cpu_count()
     parser = argparse.ArgumentParser(description="Orquestrador SEED ATTACK GPU / CPU Streaming")
-    parser.add_argument("--batch", "--batch-size", type=int, default=100000, help="Tamanho do lote por ciclo")
+    parser.add_argument("--batch", "--batch-size", type=int, default=100000000, help="Tamanho do lote por ciclo")
     parser.add_argument("--threads", "--workers", type=int, default=num_cores, help="Número de threads CPU")
     parser.add_argument("--use-gpu", action="store_true", default=True, help="Ativa aceleração em GPU CUDA")
     parser.add_argument("--mode", type=str, default="timestamp",
@@ -95,6 +105,9 @@ def main():
     print(f" 🚀 SEED ATTACK ENGINE (COINCURVE C-NATIVE STREAMING) - MODO: {args.mode.upper()}", flush=True)
     print(f"  Threads CPU Ativas: {args.threads} | Lote: {args.batch:,}", flush=True)
     print("=" * 80, flush=True)
+
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        known_db_loaded = json.load(f)
 
     cp = carregar_checkpoint()
     total_scanned = cp.get("total_scanned", 0)
@@ -133,13 +146,13 @@ def main():
                 parts = dict(item.split(":") for item in out_line.split("|") if ":" in item)
                 found_seed = int(parts.get("SEED", 0))
                 print(f"\n🎉 HIT DETECTADO NA GPU CUDA! Verificando em C-Native CPU...", flush=True)
-                if verify_full_seed(found_seed, GLOBAL_KNOWN_DB):
+                if verify_full_seed(found_seed, known_db_loaded):
                     with open(WIN_FILE, "w", encoding="utf-8") as f:
                         f.write(f"PUZZLE #71 RESOLVIDO!\nSemente: {found_seed}\nData: {datetime.now().isoformat()}\n")
                     print("🏆 PUZZLE #71 RESOLVIDO COM SUCESSO!", flush=True)
                     return
     else:
-        # CAMINHO STREAMING MULTI-THREAD CPU DE ALTA PERFORMANCE (imap_unordered)
+        # CAMINHO STREAMING MULTI-THREAD CPU DE ALTA PERFORMANCE (imap_unordered + init_worker)
         if args.mode == "sha256":
             gen = SeedGenerator.generate_sha256_timestamps(2013, 2017)
         elif args.mode == "40bit":
@@ -152,7 +165,11 @@ def main():
         batch = []
         cpu_batch = max(args.threads * 50, 1000)
 
-        with multiprocessing.Pool(processes=args.threads) as pool:
+        with multiprocessing.Pool(
+            processes=args.threads,
+            initializer=init_worker,
+            initargs=(known_db_loaded,)
+        ) as pool:
             try:
                 for seed in gen:
                     batch.append(seed)
@@ -161,7 +178,6 @@ def main():
                     lote_num += 1
                     salvar_checkpoint(batch[0], total_scanned, args.mode)
 
-                    # STREAMING IMAP_UNORDERED SEM OVERHEAD DE STARMAP
                     for res_seed in pool.imap_unordered(worker_check_seed_fast, batch, chunksize=100):
                         if res_seed is not None:
                             with open(WIN_FILE, "w", encoding="utf-8") as f:
