@@ -1,53 +1,43 @@
 """
-VERIFICADOR DE HIT & APLICAÇÃO DE MÁSCARA DO PUZZLE (HOST CPU - SHORT-CIRCUIT & FLUSH REAL-TIME)
+VERIFICADOR CRIPTOGRÁFICO DE ALTA PERFORMANCE (NATIVO COINCURVE C-ENGINE)
 Autor: Antigravity AI Engine
+
+Otimizações de Alta Performance:
+  1. Aceleração C-Native com library `coincurve` (secp256k1 compilado em C puro).
+  2. Short-Circuiting Imediato no Puzzle #70 (descarte instantâneo em 99,9999% dos casos).
+  3. Pré-computação Bitwise de Máscaras (1 << (n-1)) | (raw & ((1 << (n-1)) - 1)).
+  4. Validação em 4 Caminhos BIP32 Clássicos (m/0/n, m/n, m/0'/n, m/44'/0'/0'/0/n).
 """
 
 import hmac
 import hashlib
+import coincurve
 
-P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
-N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-Gx = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
-Gy = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
-G = (Gx, Gy)
+# Puzzles de Controle Conhecidos (#65 a #70)
+KNOWN_PUZZLES = {
+    65: 0x1a838b13505b26867,
+    66: 0x2832ed74f2b5e35ee,
+    67: 0x730fc235c1942c1ae,
+    68: 0xbebb3940cd0fc1491,
+    69: 0x101d83275fb2bc7e0c,
+    70: 0x349b84b6431a6c4ef1,
+}
 
 TARGET_ADDRESS = "1PWo3Jeb9jrGwfHDNpdGK54CRas7fsVzXU"
 
-def point_add(p1, p2):
-    if p1 is None: return p2
-    if p2 is None: return p1
-    x1, y1 = p1
-    x2, y2 = p2
-    if x1 == x2 and y1 != y2: return None
-    if x1 == x2:
-        l = (3 * x1 * x1) * pow(2 * y1, P - 2, P) % P
-    else:
-        l = (y2 - y1) * pow(x2 - x1, P - 2, P) % P
-    x3 = (l * l - x1 - x2) % P
-    y3 = (l * (x1 - x3) - y1) % P
-    return (x3, y3)
+def apply_puzzle_mask(raw_val: int, n: int) -> int:
+    mask_bits = n - 1
+    return (1 << mask_bits) | (raw_val & ((1 << mask_bits) - 1))
 
-def point_mul(k, p=G):
-    r = None
-    q = p
-    while k > 0:
-        if k & 1: r = point_add(r, q)
-        q = point_add(q, q)
-        k >>= 1
-    return r
-
-def privkey_to_pubkey_bytes(privkey_int: int) -> bytes:
-    pt = point_mul(privkey_int)
-    prefix = b'\x02' if pt[1] % 2 == 0 else b'\x03'
-    return prefix + pt[0].to_bytes(32, 'big')
-
-def privkey_to_address(privkey_int: int) -> str:
-    pub_bytes = privkey_to_pubkey_bytes(privkey_int)
+def privkey_to_address_fast(privkey_int: int) -> str:
+    priv_bytes = privkey_int.to_bytes(32, 'big')
+    pub_bytes = coincurve.PrivateKey(priv_bytes).public_key.format(compressed=True)
+    
     sha = hashlib.sha256(pub_bytes).digest()
     rip = hashlib.new('ripemd160', sha).digest()
     ext = b'\x00' + rip
     chk = hashlib.sha256(hashlib.sha256(ext).digest())[:4]
+    
     alpha = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
     num = int.from_bytes(ext + chk, 'big')
     res = ''
@@ -59,103 +49,75 @@ def privkey_to_address(privkey_int: int) -> str:
         else: break
     return res
 
-def derive_bip32_master(seed_bytes: bytes) -> tuple:
-    I = hmac.new(b"Bitcoin seed", seed_bytes, hashlib.sha512).digest()
-    master_privkey = int.from_bytes(I[:32], 'big') % N
-    chain_code = I[32:]
-    return master_privkey, chain_code
+def derive_bip32_master(seed_bytes: bytes):
+    h = hmac.new(b"Bitcoin seed", seed_bytes, hashlib.sha512).digest()
+    return int.from_bytes(h[:32], 'big'), h[32:]
 
-def derive_bip32_child(parent_privkey: int, parent_chain: bytes, index: int, hardened: bool = False) -> tuple:
-    if hardened:
-        index += 0x80000000
-        data = b'\x00' + parent_privkey.to_bytes(32, 'big') + index.to_bytes(4, 'big')
+def derive_unhardened_child(master_priv: int, master_chain: bytes, index: int):
+    pub_bytes = coincurve.PrivateKey(master_priv.to_bytes(32, 'big')).public_key.format(compressed=True)
+    msg = pub_bytes + index.to_bytes(4, 'big')
+    h = hmac.new(master_chain, msg, hashlib.sha512).digest()
+    child_priv = (int.from_bytes(h[:32], 'big') + master_priv) % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+    return child_priv
+
+def verify_full_seed(seed_input, known_db=None) -> bool:
+    """Verifica semente usando Short-Circuiting Agressivo em C-Native."""
+    if isinstance(seed_input, int):
+        seed_bytes = seed_input.to_bytes(8, 'big')
+    elif isinstance(seed_input, str):
+        seed_bytes = seed_input.encode('utf-8')
     else:
-        parent_pub_bytes = privkey_to_pubkey_bytes(parent_privkey)
-        data = parent_pub_bytes + index.to_bytes(4, 'big')
+        seed_bytes = seed_input
 
-    I = hmac.new(parent_chain, data, hashlib.sha512).digest()
-    IL = int.from_bytes(I[:32], 'big')
-    child_privkey = (IL + parent_privkey) % N
-    child_chain = I[32:]
-    return child_privkey, child_chain
-
-def derive_by_path(m_priv, m_chain, n, path_type="m/n"):
-    if path_type == "m/n":
-        child, _ = derive_bip32_child(m_priv, m_chain, n, hardened=False)
-        return child
-
-    if path_type == "m/0/n":
-        p1, c1 = derive_bip32_child(m_priv, m_chain, 0, hardened=False)
-        child, _ = derive_bip32_child(p1, c1, n, hardened=False)
-        return child
-
-    if path_type == "m/0'/n":
-        p1, c1 = derive_bip32_child(m_priv, m_chain, 0, hardened=True)
-        child, _ = derive_bip32_child(p1, c1, n, hardened=False)
-        return child
-
-    if path_type == "m/44'/0'/0'/0/n":
-        p1, c1 = derive_bip32_child(m_priv, m_chain, 44, hardened=True)
-        p2, c2 = derive_bip32_child(p1, c1, 0, hardened=True)
-        p3, c3 = derive_bip32_child(p2, c2, 0, hardened=True)
-        p4, c4 = derive_bip32_child(p3, c3, 0, hardened=False)
-        child, _ = derive_bip32_child(p4, c4, n, hardened=False)
-        return child
-
-    child, _ = derive_bip32_child(m_priv, m_chain, n, hardened=False)
-    return child
-
-def apply_puzzle_mask(raw_key: int, n: int) -> int:
-    min_n = 1 << (n - 1)
-    span  = 1 << (n - 1)
-    return min_n + (raw_key % span)
-
-def verify_full_seed(seed_val, known_keys_db: dict) -> bool:
-    if isinstance(seed_val, int):
-        seed_bytes = seed_val.to_bytes(8, 'big')
-    elif isinstance(seed_val, bytes):
-        seed_bytes = seed_val
-    elif isinstance(seed_val, str):
-        seed_bytes = seed_val.encode('utf-8')
-    else:
+    try:
+        master_priv, master_chain = derive_bip32_master(seed_bytes)
+    except Exception:
         return False
 
-    m_priv, m_chain = derive_bip32_master(seed_bytes)
-    paths = ["m/n", "m/0/n", "m/0'/n", "m/44'/0'/0'/0/n"]
+    paths = [
+        [0],                     # m/0/n
+        [],                      # m/n
+        [0x80000000],            # m/0'/n
+        [0x80000000 + 44, 0x80000000, 0x80000000, 0] # m/44'/0'/0'/0/n
+    ]
 
-    keys_map = known_keys_db.get("keys", {})
+    for p in paths:
+        curr_priv = master_priv
+        curr_chain = master_chain
+        
+        for idx in p:
+            if idx >= 0x80000000:
+                msg = b'\x00' + curr_priv.to_bytes(32, 'big') + idx.to_bytes(4, 'big')
+            else:
+                pub = coincurve.PrivateKey(curr_priv.to_bytes(32, 'big')).public_key.format(compressed=True)
+                msg = pub + idx.to_bytes(4, 'big')
+            h = hmac.new(curr_chain, msg, hashlib.sha512).digest()
+            curr_priv = (int.from_bytes(h[:32], 'big') + curr_priv) % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+            curr_chain = h[32:]
 
-    for path in paths:
-        # ATALHO INTELIGENTE: Testa primeiro o Puzzle #70 para rejeição instantânea (Short-Circuit)
-        if "70" in keys_map:
-            c70 = derive_by_path(m_priv, m_chain, 70, path)
-            if apply_puzzle_mask(c70, 70) != int(keys_map["70"], 16):
-                continue
+        # SHORT-CIRCUIT AGRESSIVO no PUZZLE #70!
+        child70_raw = derive_unhardened_child(curr_priv, curr_chain, 70)
+        child70_masked = apply_puzzle_mask(child70_raw, 70)
 
-        # Se passou no #70, verifica os outros puzzles
-        match_all = True
-        for n_str, hex_expected in keys_map.items():
-            n = int(n_str)
-            if n == 70: continue
-            expected = int(hex_expected, 16)
-            child_priv = derive_by_path(m_priv, m_chain, n, path)
-            if apply_puzzle_mask(child_priv, n) != expected:
-                match_all = False
+        if child70_masked != KNOWN_PUZZLES[70]:
+            continue
+
+        # Valida os anteriores (#65 a #69)
+        valid = True
+        for n in range(65, 70):
+            child_raw = derive_unhardened_child(curr_priv, curr_chain, n)
+            if apply_puzzle_mask(child_raw, n) != KNOWN_PUZZLES[n]:
+                valid = False
                 break
 
-        if match_all:
-            child_71 = derive_by_path(m_priv, m_chain, 71, path)
-            d71 = apply_puzzle_mask(child_71, 71)
-            addr71 = privkey_to_address(d71)
-
-            print(f"\n🎉 HIT CONFIRMADO NO PATH: {path}", flush=True)
-            print(f"  Semente : {seed_val}", flush=True)
-            print(f"  Privkey #71 : {hex(d71)}", flush=True)
-            print(f"  Endereço    : {addr71}", flush=True)
-            print(f"  Alvo        : {TARGET_ADDRESS}", flush=True)
+        if valid:
+            child71_raw = derive_unhardened_child(curr_priv, curr_chain, 71)
+            priv71 = apply_puzzle_mask(child71_raw, 71)
+            addr71 = privkey_to_address_fast(priv71)
 
             if addr71 == TARGET_ADDRESS:
-                print("  🏆 ENDEREÇO CONFIRMADO!", flush=True)
+                print(f"\n🎉🎉🎉 CONFIRMAÇÃO TOTAL NO HOST CPU! 🎉🎉🎉")
+                print(f"🔥 CHAVE PRIVADA PUZZLE #71: {hex(priv71)}")
+                print(f"🏆 ENDEREÇO BITCOIN CONFIRMADO 100%: {addr71}")
                 return True
-
     return False
